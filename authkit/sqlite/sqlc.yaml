@@ -1,0 +1,45 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    queries: "queries.sql"
+    schema: "migrations"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        emit_exported_queries: true
+        rename:
+          ids: "IDs"
+        overrides:
+          - column: "auth_users.id"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - column: "auth_sessions.user_id"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - column: "auth_tokens.user_id"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - column: "auth_users.created_at"
+            go_type:
+              import: "github.com/gopherium/framework/dbkit"
+              type: "Time"
+          - column: "auth_sessions.created_at"
+            go_type:
+              import: "github.com/gopherium/framework/dbkit"
+              type: "Time"
+          - column: "auth_sessions.expires_at"
+            go_type:
+              import: "github.com/gopherium/framework/dbkit"
+              type: "Time"
+          - column: "auth_tokens.created_at"
+            go_type:
+              import: "github.com/gopherium/framework/dbkit"
+              type: "Time"
+          - column: "auth_tokens.expires_at"
+            go_type:
+              import: "github.com/gopherium/framework/dbkit"
+              type: "Time"
