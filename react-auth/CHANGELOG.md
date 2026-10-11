@@ -10,6 +10,29 @@ Releases are tagged `react-auth@X.Y.Z` and publish to npm from CI. The
 npm-style tag stays invisible to the Go toolchain, unlike a
 `react-auth/vX.Y.Z` tag naming the directory's stub module.
 
+## [Unreleased]
+
+### Added
+
+- `User` carries the optional `capabilities` list authkit sends with a
+  capability source, and `grantable` when that source answers it.
+- `can(user, capability)`, answering whether a user holds a capability.
+  A missing user or list holds none.
+- `RoleUnknownError` and `RoleBeyondReachError`, thrown by `createUser`,
+  `invite`, `setUserRole` and `setUserDisabled` for the codes
+  `role_unknown` and `role_beyond_reach`. `RoleUnknownError` is a
+  `ValidationError`.
+- `RoleChangedError`, thrown by `setUserRole` and `setUserDisabled` for
+  the code `role_changed`.
+- `userWithCapabilities` in `testing`, a canned account holding
+  capabilities and the roles it may hand out.
+
+### Changed
+
+- The canned `defaultUser` is now Maria Perez,
+  `maria.perez@example.com`, under the same id. Tests that look for the
+  old name or address need the new ones.
+
 ## [0.10.0] - 2026-10-04
 
 ### Changed

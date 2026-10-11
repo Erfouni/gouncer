@@ -15,6 +15,7 @@ export {
 } from './api.js'
 export type { User } from './api.js'
 export { AuthGate } from './AuthGate.js'
+export { can } from './capabilities.js'
 export { DOMAIN } from './domain.js'
 export { catalogFor } from './languages.js'
 export type { Catalog } from './languages.js'

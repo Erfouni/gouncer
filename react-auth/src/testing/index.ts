@@ -31,8 +31,8 @@ export function installTestEnvironment() {
  */
 export const defaultUser: User = {
 	id: '0198b2f0-0000-7000-8000-000000000001',
-	email: 'grace@example.com',
-	name: 'Grace Hopper',
+	email: 'maria.perez@example.com',
+	name: 'Maria Perez',
 	role: '',
 }
 
@@ -54,6 +54,17 @@ export function userWithRole(role: string): User {
 		name: `Maria Perez the ${role}`,
 		role,
 	}
+}
+
+/**
+ * Returns a canned account holding the role, its capabilities, and the roles it may hand out.
+ * @param role - The role the account holds.
+ * @param capabilities - The capabilities the role carries.
+ * @param grantable - The roles the account may hand out.
+ * @returns The account.
+ */
+export function userWithCapabilities(role: string, capabilities: string[], grantable: string[] = []): User {
+	return { ...userWithRole(role), capabilities: [...capabilities], grantable: [...grantable] }
 }
 
 /**

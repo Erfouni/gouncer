@@ -2,13 +2,46 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { can } from '../src'
 import { setUserRole } from '../src/admin'
 import { fetchSession } from '../src/api'
-import { defaultUser, userWithRole, roleOk, server } from '../src/testing'
+import { defaultUser, userWithCapabilities, userWithRole, roleOk, server, sessionOk } from '../src/testing'
 
 describe('the canned accounts', () => {
 	it('leaves the default account holding no role', () => {
 		expect(defaultUser.role).toBe('')
+	})
+
+	it('signs tests in as Maria Perez under the same identifier', () => {
+		expect(defaultUser).toEqual({
+			id: '0198b2f0-0000-7000-8000-000000000001',
+			email: 'maria.perez@example.com',
+			name: 'Maria Perez',
+			role: '',
+		})
+	})
+
+	it('keeps a role account to its four keys', () => {
+		expect(Object.keys(userWithRole('editor')).sort()).toEqual(['email', 'id', 'name', 'role'])
+	})
+
+	it('cans an account holding capabilities and the roles it may hand out', () => {
+		const editor = userWithCapabilities('editor', ['posts.edit'], ['author'])
+
+		expect(editor).toEqual({ ...userWithRole('editor'), capabilities: ['posts.edit'], grantable: ['author'] })
+		expect(can(editor, 'posts.edit')).toBe(true)
+	})
+
+	it('cans an account that may hand out no role', () => {
+		expect(userWithCapabilities('member', []).grantable).toEqual([])
+	})
+
+	it('serves a canned account with its capabilities on the session', async () => {
+		server.use(sessionOk(userWithCapabilities('admin', ['users.manage'])))
+
+		const held = await fetchSession()
+
+		expect(can(held, 'users.manage')).toBe(true)
 	})
 
 	it('cans an account under any role asked for', () => {
