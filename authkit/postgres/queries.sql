@@ -51,6 +51,16 @@ UPDATE auth.users
 SET role = $2
 WHERE id = $1;
 
+-- name: SetUserRoleFrom :execrows
+UPDATE auth.users
+SET role = sqlc.arg(role)
+WHERE id = sqlc.arg(id) AND role = sqlc.arg(held);
+
+-- name: SetUserDisabledFrom :execrows
+UPDATE auth.users
+SET disabled = sqlc.arg(disabled)
+WHERE id = sqlc.arg(id) AND role = sqlc.arg(held);
+
 -- name: GrantRoleToRoleless :execrows
 UPDATE auth.users
 SET role = $1

@@ -4,12 +4,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/gouncer/authkit/postgres/internal/db"
 )
@@ -49,6 +51,58 @@ func (s *UserStore) SetUserDisabledUnderCover(
 	return s.underCover(ctx, id, privileged, disabled, func(queries *db.Queries) error {
 		return s.disable(ctx, queries, id, disabled)
 	})
+}
+
+// SetUserRoleFrom writes the role of an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserRoleFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held, role string,
+	privileged gouncer.Roles,
+) error {
+	return s.underCover(ctx, id, privileged, !privileged.Holds(role), func(queries *db.Queries) error {
+		count, err := queries.SetUserRoleFrom(ctx, db.SetUserRoleFromParams{Role: role, ID: id, Held: held})
+		if err != nil {
+			return fmt.Errorf("postgres: set user role: %w", err)
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return nil
+	})
+}
+
+// SetUserDisabledFrom disables an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserDisabledFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held string,
+	disabled bool,
+	privileged gouncer.Roles,
+) error {
+	return s.underCover(ctx, id, privileged, disabled, func(queries *db.Queries) error {
+		params := db.SetUserDisabledFromParams{Disabled: disabled, ID: id, Held: held}
+		count, err := queries.SetUserDisabledFrom(ctx, params)
+		if err != nil {
+			return fmt.Errorf("postgres: set user disabled: %w", err)
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return s.revoke(ctx, queries, id, disabled)
+	})
+}
+
+// missedOrMoved returns gouncer.ErrUserNotFound when no account has the id, else authkit.ErrRoleChanged.
+func missedOrMoved(ctx context.Context, queries *db.Queries, id uuid.UUID) error {
+	_, err := queries.GetUserByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gouncer.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("postgres: read user: %w", err)
+	}
+	return authkit.ErrRoleChanged
 }
 
 // underCover runs a write in one transaction, refusing it when it would remove the last cover.
@@ -128,13 +182,19 @@ func (s *UserStore) disable(ctx context.Context, queries *db.Queries, id uuid.UU
 	if count == 0 {
 		return gouncer.ErrUserNotFound
 	}
-	if disabled {
-		if err := queries.DeleteUserSessions(ctx, id); err != nil {
-			return fmt.Errorf("postgres: revoke user sessions: %w", err)
-		}
-		if err := queries.DeleteUserTokens(ctx, id); err != nil {
-			return fmt.Errorf("postgres: revoke user tokens: %w", err)
-		}
+	return s.revoke(ctx, queries, id, disabled)
+}
+
+// revoke deletes the sessions and tokens of an account that is now disabled.
+func (s *UserStore) revoke(ctx context.Context, queries *db.Queries, id uuid.UUID, disabled bool) error {
+	if !disabled {
+		return nil
+	}
+	if err := queries.DeleteUserSessions(ctx, id); err != nil {
+		return fmt.Errorf("postgres: revoke user sessions: %w", err)
+	}
+	if err := queries.DeleteUserTokens(ctx, id); err != nil {
+		return fmt.Errorf("postgres: revoke user tokens: %w", err)
 	}
 	return nil
 }
