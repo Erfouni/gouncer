@@ -63,20 +63,90 @@ export class SelfRoleError extends Error {}
  */
 export class LastPrivilegedError extends Error {}
 
-const errorSchema = z.object({ error: z.string(), code: z.string().optional() })
+/**
+ * RoleUnknownError is thrown when a write names a role nobody declared.
+ */
+export class RoleUnknownError extends ValidationError {}
 
 /**
- * Extracts the backend's explanation from a failed response body.
- * @param response - The failed HTTP response.
- * @param fallback - The message to use when the body is unreadable.
- * @returns The message explaining the failure.
+ * RoleBeyondReachError is thrown when the actor may not hand out the role or change the account.
  */
-async function errorMessage(response: Response, fallback: string): Promise<string> {
+export class RoleBeyondReachError extends Error {}
+
+/**
+ * RoleChangedError is thrown when the account's role changed before the write landed.
+ */
+export class RoleChangedError extends Error {}
+
+const errorSchema = z.object({ error: z.string(), code: z.string().optional() })
+
+interface Refused {
+	code?: string
+	message: string
+}
+
+type ErrorClasses = ReadonlyMap<string, new (message: string) => Error>
+
+const roleErrors: ErrorClasses = new Map<string, new (message: string) => Error>([
+	['role_unknown', RoleUnknownError],
+	['role_beyond_reach', RoleBeyondReachError],
+])
+
+const accountErrors: ErrorClasses = new Map<string, new (message: string) => Error>([
+	...roleErrors,
+	['role_changed', RoleChangedError],
+])
+
+const roleChangeErrors: ErrorClasses = new Map<string, new (message: string) => Error>([
+	...accountErrors,
+	['role_insufficient', RoleRefusedError],
+	['self_role_refused', SelfRoleError],
+	['last_privileged_refused', LastPrivilegedError],
+])
+
+/**
+ * Returns the code and message a refused response carries.
+ * @param response - The refused HTTP response.
+ * @param fallback - The message to use when the body is unreadable.
+ * @returns The error code, if any, and its message.
+ */
+async function errorOf(response: Response, fallback: string): Promise<Refused> {
 	try {
-		return errorSchema.parse(await response.json()).error
+		const held = errorSchema.parse(await response.json())
+		return { code: held.code, message: held.error }
 	} catch {
-		return fallback
+		return { message: fallback }
 	}
+}
+
+/**
+ * Returns the typed error a refused response's code names.
+ * @param refused - The code and message the response carries.
+ * @param errors - The error class each known code maps to.
+ * @returns The typed error, or undefined for any other code.
+ */
+function typedError(refused: Refused, errors: ErrorClasses = roleErrors): Error | undefined {
+	const typed = errors.get(refused.code ?? '')
+	return typed && new typed(refused.message)
+}
+
+/**
+ * Returns the error a refused account write throws.
+ * @param response - The refused HTTP response.
+ * @param fallback - The message to use when the body is unreadable.
+ * @param write - Names the write in the error for any other status.
+ * @returns The error to throw.
+ */
+async function writeError(response: Response, fallback: string, write: string): Promise<Error> {
+	const refused = await errorOf(response, fallback)
+	const typed = typedError(refused)
+	if (typed) {
+		return typed
+	}
+	if (response.status === 422) {
+		return new ValidationError(refused.message)
+	}
+	return new Error(`${write} failed with status ${response.status}`)
 }
 
 /**
@@ -112,11 +182,8 @@ async function restCreateUser(input: NewUser): Promise<User> {
 	if (response.status === 409) {
 		throw new EmailTakenError('email already in use')
 	}
-	if (response.status === 422) {
-		throw new ValidationError(await errorMessage(response, __('invalid user details', DOMAIN)))
-	}
 	if (!response.ok) {
-		throw new Error(`creating user failed with status ${response.status}`)
+		throw await writeError(response, __('invalid user details', DOMAIN), 'creating user')
 	}
 	return userSchema.parse(await response.json())
 }
@@ -136,16 +203,11 @@ async function restInvite(input: NewInvite): Promise<Invitation> {
 	if (response.status === 401) {
 		throw new UnauthorizedError('session expired')
 	}
-	if (response.status === 422) {
-		throw new ValidationError(
-			await errorMessage(response, __('invalid invitation details', DOMAIN)),
-		)
-	}
 	if (response.status === 429) {
 		throw new RateLimitedError('too many attempts')
 	}
 	if (!response.ok) {
-		throw new Error(`inviting failed with status ${response.status}`)
+		throw await writeError(response, __('invalid invitation details', DOMAIN), 'inviting')
 	}
 	return invitationSchema.parse(await response.json())
 }
@@ -165,7 +227,8 @@ async function restSetUserDisabled(id: string, disabled: boolean): Promise<void>
 		throw new UnauthorizedError('session expired')
 	}
 	if (!response.ok) {
-		throw new Error(`updating user failed with status ${response.status}`)
+		const refused = await errorOf(response, __('the account could not be updated', DOMAIN))
+		throw typedError(refused, accountErrors) ?? new Error(`updating user failed with status ${response.status}`)
 	}
 }
 
@@ -186,31 +249,8 @@ async function restSetUserRole(id: string, role: string): Promise<void> {
 	if (response.status === 401) {
 		throw new UnauthorizedError('session expired')
 	}
-	const failed = await errorOf(response)
-	if (failed.code === 'role_insufficient') {
-		throw new RoleRefusedError(failed.message)
-	}
-	if (failed.code === 'self_role_refused') {
-		throw new SelfRoleError(failed.message)
-	}
-	if (failed.code === 'last_privileged_refused') {
-		throw new LastPrivilegedError(failed.message)
-	}
-	throw new Error(`updating role failed with status ${response.status}`)
-}
-
-/**
- * Returns the code and message a refused response carries.
- * @param response - The refused HTTP response.
- * @returns The error code, if any, and its message.
- */
-async function errorOf(response: Response): Promise<{ code?: string, message: string }> {
-	try {
-		const held = errorSchema.parse(await response.json())
-		return { code: held.code, message: held.error }
-	} catch {
-		return { message: __('the account could not be updated', DOMAIN) }
-	}
+	const refused = await errorOf(response, __('the account could not be updated', DOMAIN))
+	throw typedError(refused, roleChangeErrors) ?? new Error(`updating role failed with status ${response.status}`)
 }
 
 /**
