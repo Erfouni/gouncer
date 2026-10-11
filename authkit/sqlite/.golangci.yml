@@ -1,0 +1,74 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - cyclop
+    - depguard
+    - forbidigo
+    - gocognit
+    - lll
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    cyclop:
+      max-complexity: 10
+    gocognit:
+      min-complexity: 15
+    lll:
+      line-length: 120
+    revive:
+      rules:
+        - name: blank-imports
+          disabled: true
+        - name: exported
+    depguard:
+      rules:
+        store-purity:
+          list-mode: strict
+          files:
+            - "**/*.go"
+          allow:
+            - $gostd
+            - github.com/gopherium/gouncer
+            - github.com/google/uuid
+            - github.com/google/go-cmp
+            - github.com/gopherium/framework/dbkit$
+            - github.com/gopherium/framework/dbkit/sqlite
+        one-sqlite-driver:
+          deny:
+            - pkg: modernc.org/sqlite
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: modernc.org/libc
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/mattn/go-sqlite3
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/ncruces/go-sqlite3
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/glebarez/go-sqlite
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: turso.tech/database/tursogo
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^sql\.Open(DB)?$
+          pkg: ^database/sql$
+          msg: open the database through dbkit
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - cyclop
+          - gocognit
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gopherium/gouncer
