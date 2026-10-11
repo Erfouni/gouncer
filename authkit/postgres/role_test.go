@@ -139,6 +139,44 @@ func TestSetUserDisabledRefusesToDisableTheLastPrivilegedAccount(t *testing.T) {
 	}
 }
 
+func TestCheckedWritesAnswerAMovedRoleBeforeTheLastPrivilegedGuard(t *testing.T) {
+	t.Parallel()
+
+	for _, write := range []struct {
+		name string
+		run  func(t *testing.T, store *postgres.UserStore, account gouncer.User) error
+	}{
+		{"SetUserRoleFrom", func(t *testing.T, store *postgres.UserStore, account gouncer.User) error {
+			return store.SetUserRoleFrom(t.Context(), account.ID, "editor", "member", gouncer.Roles{"admin"})
+		}},
+		{"SetUserDisabledFrom", func(t *testing.T, store *postgres.UserStore, account gouncer.User) error {
+			return store.SetUserDisabledFrom(t.Context(), account.ID, "editor", true, gouncer.Roles{"admin"})
+		}},
+	} {
+		t.Run(write.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := postgres.NewUserStore(newTestPool(t))
+			lastAdmin := addWithRole(t, store, "ada@example.com", "admin")
+			addWithRole(t, store, "grace@example.com", "editor")
+
+			err := write.run(t, store, lastAdmin)
+
+			if !errors.Is(err, authkit.ErrRoleChanged) {
+				t.Fatalf("%s() of the last admin checked as editor error = %v, want ErrRoleChanged", write.name, err)
+			}
+			held, readErr := store.UserByID(t.Context(), lastAdmin.ID)
+			if readErr != nil {
+				t.Fatalf("UserByID() error = %v, want nil", readErr)
+			}
+			if held.Role != "admin" || held.Disabled {
+				t.Errorf("account = role %q disabled %v, want the refused write to leave an enabled admin",
+					held.Role, held.Disabled)
+			}
+		})
+	}
+}
+
 func TestSetUserRoleLeavesOnePrivilegedAccountUnderConcurrentDemotions(t *testing.T) {
 	t.Parallel()
 

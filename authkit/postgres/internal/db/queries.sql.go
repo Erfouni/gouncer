@@ -489,6 +489,26 @@ func (q *Queries) SetUserDisabled(ctx context.Context, arg SetUserDisabledParams
 	return result.RowsAffected(), nil
 }
 
+const setUserDisabledFrom = `-- name: SetUserDisabledFrom :execrows
+UPDATE auth.users
+SET disabled = $1
+WHERE id = $2 AND role = $3
+`
+
+type SetUserDisabledFromParams struct {
+	Disabled bool
+	ID       uuid.UUID
+	Held     string
+}
+
+func (q *Queries) SetUserDisabledFrom(ctx context.Context, arg SetUserDisabledFromParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserDisabledFrom, arg.Disabled, arg.ID, arg.Held)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setUserPassword = `-- name: SetUserPassword :execrows
 UPDATE auth.users
 SET password_hash = $2
@@ -521,6 +541,26 @@ type SetUserRoleParams struct {
 
 func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setUserRole, arg.ID, arg.Role)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setUserRoleFrom = `-- name: SetUserRoleFrom :execrows
+UPDATE auth.users
+SET role = $1
+WHERE id = $2 AND role = $3
+`
+
+type SetUserRoleFromParams struct {
+	Role string
+	ID   uuid.UUID
+	Held string
+}
+
+func (q *Queries) SetUserRoleFrom(ctx context.Context, arg SetUserRoleFromParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserRoleFrom, arg.Role, arg.ID, arg.Held)
 	if err != nil {
 		return 0, err
 	}

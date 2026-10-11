@@ -4,12 +4,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/gouncer/authkit/postgres/internal/db"
 )
@@ -27,7 +29,7 @@ func (s *UserStore) SetUserRole(
 	role string,
 	privileged gouncer.Roles,
 ) error {
-	return s.underCover(ctx, id, privileged, !privileged.Holds(role), func(queries *db.Queries) error {
+	return s.underCover(ctx, id, privileged, !privileged.Holds(role), anyHeld, func(queries *db.Queries) error {
 		count, err := queries.SetUserRole(ctx, db.SetUserRoleParams{ID: id, Role: role})
 		if err != nil {
 			return fmt.Errorf("postgres: set user role: %w", err)
@@ -46,17 +48,94 @@ func (s *UserStore) SetUserDisabledUnderCover(
 	disabled bool,
 	privileged gouncer.Roles,
 ) error {
-	return s.underCover(ctx, id, privileged, disabled, func(queries *db.Queries) error {
+	return s.underCover(ctx, id, privileged, disabled, anyHeld, func(queries *db.Queries) error {
 		return s.disable(ctx, queries, id, disabled)
 	})
 }
 
-// underCover runs a write in one transaction, refusing it when it would remove the last cover.
+// SetUserRoleFrom writes the role of an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserRoleFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held, role string,
+	privileged gouncer.Roles,
+) error {
+	removesCover := !privileged.Holds(role)
+	return s.underCover(ctx, id, privileged, removesCover, stillHolds(ctx, id, held), func(queries *db.Queries) error {
+		count, err := queries.SetUserRoleFrom(ctx, db.SetUserRoleFromParams{Role: role, ID: id, Held: held})
+		if err != nil {
+			return fmt.Errorf("postgres: set user role: %w", err)
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return nil
+	})
+}
+
+// SetUserDisabledFrom disables an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserDisabledFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held string,
+	disabled bool,
+	privileged gouncer.Roles,
+) error {
+	return s.underCover(ctx, id, privileged, disabled, stillHolds(ctx, id, held), func(queries *db.Queries) error {
+		params := db.SetUserDisabledFromParams{Disabled: disabled, ID: id, Held: held}
+		count, err := queries.SetUserDisabledFrom(ctx, params)
+		if err != nil {
+			return fmt.Errorf("postgres: set user disabled: %w", err)
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return s.revoke(ctx, queries, id, disabled)
+	})
+}
+
+// missedOrMoved returns gouncer.ErrUserNotFound when no account has the id, else authkit.ErrRoleChanged.
+func missedOrMoved(ctx context.Context, queries *db.Queries, id uuid.UUID) error {
+	_, err := queries.GetUserByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gouncer.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("postgres: read user: %w", err)
+	}
+	return authkit.ErrRoleChanged
+}
+
+// anyHeld accepts an account whatever role it holds.
+func anyHeld(*db.Queries) error {
+	return nil
+}
+
+// stillHolds returns a check refusing a missing account and one that no longer holds held.
+func stillHolds(ctx context.Context, id uuid.UUID, held string) func(*db.Queries) error {
+	return func(queries *db.Queries) error {
+		u, err := queries.GetUserByID(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gouncer.ErrUserNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("postgres: read user: %w", err)
+		}
+		if u.Role != held {
+			return authkit.ErrRoleChanged
+		}
+		return nil
+	}
+}
+
+// underCover runs a write in one transaction once check accepts the account, refusing it when it would remove the
+// last cover.
 func (s *UserStore) underCover(
 	ctx context.Context,
 	id uuid.UUID,
 	privileged gouncer.Roles,
 	removesCover bool,
+	check func(*db.Queries) error,
 	write func(*db.Queries) error,
 ) error {
 	tx, err := s.pool.Begin(ctx)
@@ -64,16 +143,31 @@ func (s *UserStore) underCover(
 		return fmt.Errorf("postgres: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := s.refuseUncovered(ctx, tx, id, privileged, removesCover); err != nil {
+	queries := s.queries.WithTx(tx)
+	if err := check(queries); err != nil {
 		return err
 	}
-	if err := write(s.queries.WithTx(tx)); err != nil {
+	if err := s.refuseUncovered(ctx, tx, id, privileged, removesCover); err != nil {
+		return recheckedGuard(err, check, queries)
+	}
+	if err := write(queries); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("postgres: commit: %w", err)
 	}
 	return nil
+}
+
+// recheckedGuard returns what check answers once the guard refused with gouncer.ErrLastPrivileged, else err.
+func recheckedGuard(err error, check func(*db.Queries) error, queries *db.Queries) error {
+	if !errors.Is(err, gouncer.ErrLastPrivileged) {
+		return err
+	}
+	if moved := check(queries); moved != nil {
+		return moved
+	}
+	return err
 }
 
 // refuseUncovered holds the privileged accounts and refuses a write leaving none enabled.
@@ -128,13 +222,19 @@ func (s *UserStore) disable(ctx context.Context, queries *db.Queries, id uuid.UU
 	if count == 0 {
 		return gouncer.ErrUserNotFound
 	}
-	if disabled {
-		if err := queries.DeleteUserSessions(ctx, id); err != nil {
-			return fmt.Errorf("postgres: revoke user sessions: %w", err)
-		}
-		if err := queries.DeleteUserTokens(ctx, id); err != nil {
-			return fmt.Errorf("postgres: revoke user tokens: %w", err)
-		}
+	return s.revoke(ctx, queries, id, disabled)
+}
+
+// revoke deletes the sessions and tokens of an account that is now disabled.
+func (s *UserStore) revoke(ctx context.Context, queries *db.Queries, id uuid.UUID, disabled bool) error {
+	if !disabled {
+		return nil
+	}
+	if err := queries.DeleteUserSessions(ctx, id); err != nil {
+		return fmt.Errorf("postgres: revoke user sessions: %w", err)
+	}
+	if err := queries.DeleteUserTokens(ctx, id); err != nil {
+		return fmt.Errorf("postgres: revoke user tokens: %w", err)
 	}
 	return nil
 }
