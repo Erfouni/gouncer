@@ -10,6 +10,10 @@ github.com/gopherium/framework/dbkit v0.2.0 h1:V+Di+B8oGvdmQKPx5q/a/PbgfHOvRAHhC
 github.com/gopherium/framework/dbkit v0.2.0/go.mod h1:sGsNkpbHe1LRW7k1qEjTzqbeHVYOnoCI5e1l/81TAvQ=
 github.com/gopherium/framework/dbkit/sqlite v0.1.0 h1:NmfcEuhlV5/SpqqZHHeN1qtA6FBDwERGmYFCHMXy5YA=
 github.com/gopherium/framework/dbkit/sqlite v0.1.0/go.mod h1:43gIZC9JkU/PeAvKLVjEubbe6TOz+1rjIANf615QEOI=
+github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
+github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
+github.com/gopherium/gouncer/authkit v0.18.0 h1:VZdBYF7tPhDq5FV4AnLxit9v4BK1VJmjTuxxON7QeJc=
+github.com/gopherium/gouncer/authkit v0.18.0/go.mod h1:oJP/pk0xnXA4HhOlFoqm4lh9ulScCUbgGeLFrquZ6g8=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
@@ -30,6 +34,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
+golang.org/x/crypto v0.54.0 h1:YLIA59K4fiNzHzjnZt2tUJQjQtUWfWbeHBqKtk3eScw=
+golang.org/x/crypto v0.54.0/go.mod h1:KWL8ny2AZdGR2cWmzeHrp2azQPGogOv+HeQaVEXC2dk=
 golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
 golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
 golang.org/x/sync v0.23.0 h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=
