@@ -79,6 +79,8 @@ var authErrors = []struct {
 		ErrorResponse{Message: "email already in use", Code: "email_taken"}},
 	{ErrUnknownRole, http.StatusUnprocessableEntity,
 		ErrorResponse{Message: "unknown role", Code: "role_unknown", Meta: map[string]any{"field": "role"}}},
+	{ErrRoleChanged, http.StatusConflict,
+		ErrorResponse{Message: "role changed", Code: "role_changed"}},
 }
 
 // ErrorResponseForAuthError returns the HTTP status code and error body for a

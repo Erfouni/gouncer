@@ -3,12 +3,15 @@
 package authkit_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strconv"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
@@ -22,8 +25,37 @@ var (
 	_ authkit.RoleSource = (*lateRoles)(nil)
 )
 
-// errListFailed is the failure a store answers when it cannot list accounts.
-var errListFailed = errors.New("list failed")
+// errLookupFailed is the failure a store answers when it cannot read accounts.
+var errLookupFailed = errors.New("lookup failed")
+
+// listOnly is an account store that answers no UserByID.
+type listOnly struct {
+	authkit.AdminStore
+}
+
+// failingLookup is an account store whose UserByID fails.
+type failingLookup struct {
+	*testkit.Store
+}
+
+// UserByID answers the lookup failure.
+func (failingLookup) UserByID(context.Context, uuid.UUID) (gouncer.User, error) {
+	return gouncer.User{}, errLookupFailed
+}
+
+// promotingStore is an account store that promotes each account to admin right after reading it.
+type promotingStore struct {
+	*testkit.Store
+}
+
+// UserByID returns the account as stored, then stores it promoted to admin.
+func (s promotingStore) UserByID(ctx context.Context, id uuid.UUID) (gouncer.User, error) {
+	read, err := s.Store.UserByID(ctx, id)
+	promoted := read
+	promoted.Role = "admin"
+	s.Users[id] = promoted
+	return read, err
+}
 
 // Known reports whether the table holds the role.
 func (t roleTable) Known(role string) bool {
@@ -88,10 +120,22 @@ func ladder() roleTable {
 // reachServer mounts the admin routes over the role source, signed in as the actor role.
 func reachServer(t *testing.T, store *testkit.Store, roles authkit.RoleSource, actorRole string) http.Handler {
 	t.Helper()
+	return reachServerOver(t, store, store, roles, actorRole)
+}
+
+// reachServerOver mounts the admin routes writing through accounts, signed in to store as the actor role.
+func reachServerOver(
+	t *testing.T,
+	store *testkit.Store,
+	accounts authkit.AdminStore,
+	roles authkit.RoleSource,
+	actorRole string,
+) http.Handler {
+	t.Helper()
 	addAdaAs(t, store, actorRole)
 	privileged := gouncer.Roles{"admin", "moderator"}
 	h := authkit.New(authkit.Config{Store: store, Privileged: privileged})
-	admin := authkit.NewAdmin(authkit.AdminConfig{Store: store, Privileged: privileged, Roles: roles})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: accounts, Privileged: privileged, Roles: roles})
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 	mux.Handle("POST /api/users", h.RequireSession(http.HandlerFunc(admin.Create)))
@@ -320,21 +364,160 @@ func TestReachChecksReportAFailedAccountLookup(t *testing.T) {
 		{"role", http.MethodPut, func(id string) string { return "/api/users/" + id + "/role" }, `{"role":"member"}`},
 		{"disable", http.MethodPatch, func(id string) string { return "/api/users/" + id }, `{"disabled":true}`},
 	} {
-		t.Run(held.name, func(t *testing.T) {
+		for _, lookup := range lookups() {
+			t.Run(held.name+" through "+lookup.name, func(t *testing.T) {
+				t.Parallel()
+
+				store := testkit.NewStore()
+				srv := reachServerOver(t, store, lookup.failing(store), ladder(), "admin")
+				maria := addMariaAs(t, store, "moderator")
+
+				recorder := doRequest(t, srv, held.method, held.target(maria.ID.String()), held.body)
+
+				wantRefused(t, recorder, http.StatusInternalServerError, "internal")
+				if after := store.Users[maria.ID]; after.Role != "moderator" || after.Disabled {
+					t.Errorf("account = role %q disabled %v, want it untouched", after.Role, after.Disabled)
+				}
+			})
+		}
+	}
+}
+
+// accountLookup is one way the admin handlers read an account, over a store built to answer or to fail.
+type accountLookup struct {
+	name    string
+	working func(store *testkit.Store) authkit.AdminStore
+	failing func(store *testkit.Store) authkit.AdminStore
+}
+
+// lookups returns the read by id and the read through the account list.
+func lookups() []accountLookup {
+	return []accountLookup{
+		{
+			name:    "UserByID",
+			working: func(store *testkit.Store) authkit.AdminStore { return store },
+			failing: func(store *testkit.Store) authkit.AdminStore { return failingLookup{store} },
+		},
+		{
+			name:    "ListUsers",
+			working: func(store *testkit.Store) authkit.AdminStore { return listOnly{store} },
+			failing: func(store *testkit.Store) authkit.AdminStore {
+				store.ListUsersErr = errLookupFailed
+				return listOnly{store}
+			},
+		},
+	}
+}
+
+func TestReenablingAMissingAccountIsNotFound(t *testing.T) {
+	t.Parallel()
+
+	for _, lookup := range lookups() {
+		t.Run(lookup.name, func(t *testing.T) {
 			t.Parallel()
 
 			store := testkit.NewStore()
-			srv := reachServer(t, store, ladder(), "admin")
-			maria := addMariaAs(t, store, "moderator")
-			store.ListUsersErr = errListFailed
+			srv := reachServerOver(t, store, lookup.working(store), ladder(), "admin")
 
-			recorder := doRequest(t, srv, held.method, held.target(maria.ID.String()), held.body)
+			recorder := doRequest(t, srv, http.MethodPatch, "/api/users/"+uuidZero, `{"disabled":false}`)
 
-			wantRefused(t, recorder, http.StatusInternalServerError, "internal")
-			if after := store.Users[maria.ID]; after.Role != "moderator" || after.Disabled {
-				t.Errorf("account = role %q disabled %v, want it untouched", after.Role, after.Disabled)
+			wantRefused(t, recorder, http.StatusNotFound, "user_not_found")
+		})
+	}
+}
+
+func TestWritesReadTheAccountListWhenTheStoreCannotReadByID(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := reachServerOver(t, store, listOnly{store}, ladder(), "admin")
+	maria := addMariaAs(t, store, "member")
+
+	if recorder := setRole(t, srv, maria, "moderator"); recorder.Code != http.StatusNoContent {
+		t.Fatalf("role status = %d, want %d, body %s", recorder.Code, http.StatusNoContent, recorder.Body)
+	}
+	if recorder := setDisabled(t, srv, maria, true); recorder.Code != http.StatusNoContent {
+		t.Fatalf("disable status = %d, want %d, body %s", recorder.Code, http.StatusNoContent, recorder.Body)
+	}
+	if after := store.Users[maria.ID]; after.Role != "moderator" || !after.Disabled {
+		t.Errorf("account = role %q disabled %v, want moderator and disabled", after.Role, after.Disabled)
+	}
+}
+
+func TestSetRoleUnderASourceRefusesTheActorsOwnRole(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := reachServer(t, store, ladder(), "moderator")
+	actor := byEmail(t, store, "ada@example.com")
+
+	wantRefused(t, setRole(t, srv, actor, "member"), http.StatusUnprocessableEntity, "self_role_refused")
+	if held := store.Users[actor.ID].Role; held != "moderator" {
+		t.Errorf("role = %q, want the refused write to leave %q", held, "moderator")
+	}
+}
+
+// byEmail returns the stored account at email, failing the test without one.
+func byEmail(t *testing.T, store *testkit.Store, email string) gouncer.User {
+	t.Helper()
+	u, err := store.UserByEmail(t.Context(), email)
+	if err != nil {
+		t.Fatalf("UserByEmail(%s) error = %v, want nil", email, err)
+	}
+	return u
+}
+
+func TestTheAccountIsReadByIDWhenTheStoreCan(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := reachServer(t, store, ladder(), "admin")
+	maria := addMariaAs(t, store, "member")
+	store.ListUsersErr = errLookupFailed
+
+	if recorder := setRole(t, srv, maria, "moderator"); recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d without listing the accounts, body %s",
+			recorder.Code, http.StatusNoContent, recorder.Body)
+	}
+}
+
+func TestARoleMovedBeforeTheWriteAnswersConflict(t *testing.T) {
+	t.Parallel()
+
+	for _, write := range []struct {
+		name string
+		send func(t *testing.T, srv http.Handler, account gouncer.User) *httptest.ResponseRecorder
+	}{
+		{"role", func(t *testing.T, srv http.Handler, account gouncer.User) *httptest.ResponseRecorder {
+			return setRole(t, srv, account, "moderator")
+		}},
+		{"disable", func(t *testing.T, srv http.Handler, account gouncer.User) *httptest.ResponseRecorder {
+			return setDisabled(t, srv, account, true)
+		}},
+	} {
+		t.Run(write.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			srv := reachServerOver(t, store, promotingStore{store}, ladder(), "moderator")
+			maria := addMariaAs(t, store, "member")
+
+			wantRefused(t, write.send(t, srv, maria), http.StatusConflict, "role_changed")
+			if after := store.Users[maria.ID]; after.Role != "admin" || after.Disabled {
+				t.Errorf("account = role %q disabled %v, want the promotion kept and the write refused",
+					after.Role, after.Disabled)
 			}
 		})
+	}
+}
+
+func TestErrorResponseForAuthErrorNamesAChangedRole(t *testing.T) {
+	t.Parallel()
+
+	status, response, ok := authkit.ErrorResponseForAuthError(authkit.ErrRoleChanged)
+
+	if !ok || status != http.StatusConflict || response.Code != "role_changed" {
+		t.Errorf("ErrorResponseForAuthError() = %d, %+v, %v, want 409 role_changed", status, response, ok)
 	}
 }
 
@@ -433,9 +616,9 @@ func TestWritesWithoutARoleSourceListNoAccounts(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
-	srv := reachServer(t, store, nil, "admin")
+	srv := reachServerOver(t, store, failingLookup{store}, nil, "admin")
 	maria := addMariaAs(t, store, "member")
-	store.ListUsersErr = errListFailed
+	store.ListUsersErr = errLookupFailed
 
 	if recorder := setRole(t, srv, maria, "editor"); recorder.Code != http.StatusNoContent {
 		t.Errorf("role status = %d, want %d, body %s", recorder.Code, http.StatusNoContent, recorder.Body)

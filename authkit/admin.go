@@ -26,6 +26,13 @@ type AdminStore interface {
 
 	// SetUserRole writes the role an account holds, under the privileged guard.
 	SetUserRole(ctx context.Context, id uuid.UUID, role string, privileged gouncer.Roles) error
+
+	// SetUserRoleFrom writes the role of an account still holding held, under the guard, or returns [ErrRoleChanged].
+	SetUserRoleFrom(ctx context.Context, id uuid.UUID, held, role string, privileged gouncer.Roles) error
+
+	// SetUserDisabledFrom updates whether an account still holding held may log in, under the guard, or returns
+	// [ErrRoleChanged].
+	SetUserDisabledFrom(ctx context.Context, id uuid.UUID, held string, disabled bool, privileged gouncer.Roles) error
 }
 
 // AdminConfig parameterizes account administration.
@@ -124,18 +131,45 @@ func (a *AdminHandlers) SetAccountDisabled(ctx context.Context, actorID, id uuid
 	return a.store.SetUserDisabledUnderCover(ctx, id, disabled, a.privileged)
 }
 
+// setDisabledFrom updates whether the account may log in while it holds held, under SetAccountDisabled's checks.
+func (a *AdminHandlers) setDisabledFrom(ctx context.Context, actorID, id uuid.UUID, held string, disabled bool) error {
+	if a.roles == nil || (disabled && actorID == id) {
+		return a.SetAccountDisabled(ctx, actorID, id, disabled)
+	}
+	return a.store.SetUserDisabledFrom(ctx, id, held, disabled, a.privileged)
+}
+
 // ErrSelfRole reports an account changing its own role.
 var ErrSelfRole = errors.New("authkit: cannot change your own role")
 
 // SetAccountRole writes the role an account holds, refusing an actor changing its own and an undeclared role.
 func (a *AdminHandlers) SetAccountRole(ctx context.Context, actorID, id uuid.UUID, role string) error {
+	if err := a.checkRoleChange(actorID, id, role); err != nil {
+		return err
+	}
+	return a.store.SetUserRole(ctx, id, role, a.privileged)
+}
+
+// setRoleFrom writes the role an account holds while it holds held, under SetAccountRole's checks.
+func (a *AdminHandlers) setRoleFrom(ctx context.Context, actorID, id uuid.UUID, held, role string) error {
+	if a.roles == nil {
+		return a.SetAccountRole(ctx, actorID, id, role)
+	}
+	if err := a.checkRoleChange(actorID, id, role); err != nil {
+		return err
+	}
+	return a.store.SetUserRoleFrom(ctx, id, held, role, a.privileged)
+}
+
+// checkRoleChange returns ErrSelfRole for an actor changing its own role and ErrUnknownRole for an undeclared one.
+func (a *AdminHandlers) checkRoleChange(actorID, id uuid.UUID, role string) error {
 	if actorID == id {
 		return ErrSelfRole
 	}
 	if !declared(a.roles, role) {
 		return ErrUnknownRole
 	}
-	return a.store.SetUserRole(ctx, id, role, a.privileged)
+	return nil
 }
 
 // List responds with every user account.
@@ -206,11 +240,12 @@ func (a *AdminHandlers) SetDisabled(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if a.refuseAccountBeyondReach(w, r, id, !*req.Disabled) {
+	held, ok := a.heldWithinReach(w, r, id, !*req.Disabled)
+	if !ok {
 		return
 	}
 	actor := IdentityFromContext(r.Context())
-	err = a.SetAccountDisabled(r.Context(), actor.ID, id, *req.Disabled)
+	err = a.setDisabledFrom(r.Context(), actor.ID, id, held, *req.Disabled)
 	if errors.Is(err, ErrSelfDisable) {
 		RespondError(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Message: "cannot disable your own account", Code: "self_disable_refused",
@@ -264,11 +299,12 @@ func (a *AdminHandlers) SetRole(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if a.refuseRoleChange(w, r, id, *req.Role) {
+	held, ok := a.roleChangeHeld(w, r, id, *req.Role)
+	if !ok {
 		return
 	}
 	actor := IdentityFromContext(r.Context())
-	err = a.SetAccountRole(r.Context(), actor.ID, id, *req.Role)
+	err = a.setRoleFrom(r.Context(), actor.ID, id, held, *req.Role)
 	if errors.Is(err, ErrSelfRole) {
 		RespondError(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Message: "cannot change your own role", Code: "self_role_refused",

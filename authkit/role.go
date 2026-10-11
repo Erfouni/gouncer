@@ -8,10 +8,15 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/gouncer"
 )
 
 // ErrUnknownRole reports a role the role source does not declare.
 var ErrUnknownRole = errors.New("authkit: unknown role")
+
+// ErrRoleChanged reports an account whose role is no longer the one the write was checked against.
+var ErrRoleChanged = errors.New("authkit: role changed")
 
 // RoleSource answers which roles exist and which roles a caller may hand out.
 type RoleSource interface {
@@ -39,33 +44,39 @@ func (a *AdminHandlers) refuseHandout(w http.ResponseWriter, r *http.Request, ro
 	return a.refuseOutranking(w, r, role)
 }
 
-// refuseAccountBeyondReach reports whether it refused an actor not outranking the declared role the account holds.
-func (a *AdminHandlers) refuseAccountBeyondReach(
+// heldWithinReach returns the role the account holds and whether the actor may change the account.
+func (a *AdminHandlers) heldWithinReach(
 	w http.ResponseWriter,
 	r *http.Request,
 	id uuid.UUID,
 	reenable bool,
-) bool {
+) (string, bool) {
 	if a.roles == nil {
-		return false
+		return "", true
 	}
 	held, err := a.heldRole(r.Context(), id)
 	if err != nil {
 		respondAuthError(w, err)
-		return true
+		return "", false
 	}
 	if declared(a.roles, held) {
-		return a.refuseOutranking(w, r, held)
+		return held, !a.refuseOutranking(w, r, held)
 	}
 	if reenable {
 		respondBeyondReach(w)
 	}
-	return reenable
+	return held, !reenable
 }
 
-// refuseRoleChange reports whether it refused moving the account to the role.
-func (a *AdminHandlers) refuseRoleChange(w http.ResponseWriter, r *http.Request, id uuid.UUID, role string) bool {
-	return a.refuseAccountBeyondReach(w, r, id, false) || a.refuseHandout(w, r, role)
+// roleChangeHeld returns the role the account holds and whether the actor may move the account to role.
+func (a *AdminHandlers) roleChangeHeld(
+	w http.ResponseWriter,
+	r *http.Request,
+	id uuid.UUID,
+	role string,
+) (string, bool) {
+	held, ok := a.heldWithinReach(w, r, id, false)
+	return held, ok && !a.refuseHandout(w, r, role)
 }
 
 // refuseOutranking reports whether it refused an actor that does not outrank the role.
@@ -82,8 +93,17 @@ func respondBeyondReach(w http.ResponseWriter) {
 	RespondError(w, http.StatusForbidden, ErrorResponse{Message: "role beyond reach", Code: "role_beyond_reach"})
 }
 
-// heldRole returns the role the account holds, or the empty role when no account has the id.
+// accountReader is a store that reads one account by id.
+type accountReader interface {
+	UserByID(ctx context.Context, id uuid.UUID) (gouncer.User, error)
+}
+
+// heldRole returns the role the account holds, or gouncer.ErrUserNotFound when no account has the id.
 func (a *AdminHandlers) heldRole(ctx context.Context, id uuid.UUID) (string, error) {
+	if reader, ok := a.store.(accountReader); ok {
+		u, err := reader.UserByID(ctx, id)
+		return u.Role, err
+	}
 	users, err := a.store.ListUsers(ctx)
 	if err != nil {
 		return "", err
@@ -93,5 +113,5 @@ func (a *AdminHandlers) heldRole(ctx context.Context, id uuid.UUID) (string, err
 			return u.Role, nil
 		}
 	}
-	return "", nil
+	return "", gouncer.ErrUserNotFound
 }
