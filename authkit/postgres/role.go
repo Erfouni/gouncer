@@ -148,7 +148,7 @@ func (s *UserStore) underCover(
 		return err
 	}
 	if err := s.refuseUncovered(ctx, tx, id, privileged, removesCover); err != nil {
-		return err
+		return recheckedGuard(err, check, queries)
 	}
 	if err := write(queries); err != nil {
 		return err
@@ -157,6 +157,17 @@ func (s *UserStore) underCover(
 		return fmt.Errorf("postgres: commit: %w", err)
 	}
 	return nil
+}
+
+// recheckedGuard returns what check answers once the guard refused with gouncer.ErrLastPrivileged, else err.
+func recheckedGuard(err error, check func(*db.Queries) error, queries *db.Queries) error {
+	if !errors.Is(err, gouncer.ErrLastPrivileged) {
+		return err
+	}
+	if moved := check(queries); moved != nil {
+		return moved
+	}
+	return err
 }
 
 // refuseUncovered holds the privileged accounts and refuses a write leaving none enabled.

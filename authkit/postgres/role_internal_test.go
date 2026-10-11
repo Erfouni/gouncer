@@ -29,11 +29,103 @@ func mockPool(t *testing.T) pgxmock.PgxPoolIface {
 	return mock
 }
 
-// expectMember expects the account id to be read inside the transaction, holding the member role.
-func expectMember(mock pgxmock.PgxPoolIface, id uuid.UUID) {
+// expectRole expects the account id to be read inside the transaction, holding role.
+func expectRole(mock pgxmock.PgxPoolIface, id uuid.UUID, role string) {
 	columns := []string{"id", "email", "name", "password_hash", "disabled", "created_at", "role", "confirmed"}
 	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnRows(pgxmock.NewRows(columns).
-		AddRow(id, "maria@example.com", "Maria Perez", "", false, time.Now().UTC(), "member", true))
+		AddRow(id, "maria@example.com", "Maria Perez", "", false, time.Now().UTC(), role, true))
+}
+
+// expectMember expects the account id to be read inside the transaction, holding the member role.
+func expectMember(mock pgxmock.PgxPoolIface, id uuid.UUID) {
+	expectRole(mock, id, "member")
+}
+
+// expectLastAdmin expects the guard to lock the admins and find the account id the last enabled one.
+func expectLastAdmin(mock pgxmock.PgxPoolIface, id uuid.UUID) {
+	admins := []string{"admin"}
+	mock.ExpectExec("FOR UPDATE").WithArgs(admins).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery(`count\(\*\)`).WithArgs(id, admins).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`count\(\*\)`).WithArgs(admins, id).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+}
+
+func TestUserStoreCheckedWritesAnswerARolePromotedBeforeTheGuard(t *testing.T) {
+	t.Parallel()
+
+	for _, write := range []struct {
+		name string
+		run  func(t *testing.T, store *UserStore, id uuid.UUID) error
+	}{
+		{"SetUserRoleFrom", func(t *testing.T, store *UserStore, id uuid.UUID) error {
+			return store.SetUserRoleFrom(t.Context(), id, "member", "editor", []string{"admin"})
+		}},
+		{"SetUserDisabledFrom", func(t *testing.T, store *UserStore, id uuid.UUID) error {
+			return store.SetUserDisabledFrom(t.Context(), id, "member", true, []string{"admin"})
+		}},
+	} {
+		t.Run(write.name, func(t *testing.T) {
+			t.Parallel()
+
+			mock := mockPool(t)
+			id := uuid.Must(uuid.NewV7())
+			mock.ExpectBegin()
+			expectMember(mock, id)
+			expectLastAdmin(mock, id)
+			expectRole(mock, id, "admin")
+			mock.ExpectRollback()
+
+			err := write.run(t, newUserStore(mock), id)
+
+			wantError(t, mock, write.name, err, authkit.ErrRoleChanged)
+		})
+	}
+}
+
+func TestUserStoreCheckedWriteReportsARecheckFailureAtTheGuard(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	expectLastAdmin(mock, id)
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", []string{"admin"})
+
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
+}
+
+func TestUserStoreCheckedWriteReportsAGuardFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	mock.ExpectExec("FOR UPDATE").WithArgs([]string{"admin"}).WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, []string{"admin"})
+
+	wantError(t, mock, "SetUserDisabledFrom", err, errBackend)
+}
+
+func TestUserStoreCheckedWriteKeepsTheGuardWhenTheRoleStands(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectRole(mock, id, "admin")
+	expectLastAdmin(mock, id)
+	expectRole(mock, id, "admin")
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "admin", "editor", []string{"admin"})
+
+	wantError(t, mock, "SetUserRoleFrom", err, gouncer.ErrLastPrivileged)
 }
 
 func TestUserStoreSetUserRoleReportsWriteFailure(t *testing.T) {
