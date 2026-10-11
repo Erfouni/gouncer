@@ -55,7 +55,7 @@
     "@wordpress/ui": ">=0.23.0 <0.24.0",
     "msw": "^2.15.0",
     "react": "^19.2.7",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@testing-library/jest-dom": {
@@ -85,7 +85,7 @@
     "@types/gettext-parser": "9.0.0",
     "@types/react": "^19.2.17",
     "@vitejs/plugin-react": "^6.0.3",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.3",
     "@wordpress/i18n": "6.29.0",
     "@wordpress/theme": "2.2.0",
     "@wordpress/ui": "0.23.0",
@@ -95,7 +95,7 @@
     "eslint-plugin-tsdoc": "^0.4.0",
     "gettext-extractor": "4.0.6",
     "gettext-parser": "9.1.1",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.1.2",
     "msw": "^2.15.0",
     "oxlint": "^1.71.0",
     "react": "^19.2.7",
@@ -103,6 +103,6 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.46.4",
     "vite": "^8.1.4",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.3"
   }
 }
