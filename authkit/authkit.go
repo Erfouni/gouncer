@@ -30,14 +30,17 @@ type Config struct {
 	// Privileged names the roles RequirePrivilege admits and the guard
 	// keeps an enabled account holding. Empty admits every role.
 	Privileged gouncer.Roles
+	// Capabilities answers the capabilities a role carries. Nil fills none.
+	Capabilities CapabilitySource
 }
 
 // Handlers serves login sessions over HTTP.
 type Handlers struct {
-	store      gouncer.Store
-	cookieName string
-	ttl        time.Duration
-	privileged gouncer.Roles
+	store        gouncer.Store
+	cookieName   string
+	ttl          time.Duration
+	privileged   gouncer.Roles
+	capabilities CapabilitySource
 	// newSession issues login sessions; a field so failure paths stay
 	// testable.
 	newSession func(userID uuid.UUID) (gouncer.Session, error)
@@ -54,11 +57,12 @@ func New(cfg Config) *Handlers {
 		ttl = gouncer.DefaultSessionDuration
 	}
 	return &Handlers{
-		store:      cfg.Store,
-		cookieName: cookieName,
-		ttl:        ttl,
-		privileged: slices.Clone(cfg.Privileged),
-		newSession: gouncer.NewSession,
+		store:        cfg.Store,
+		cookieName:   cookieName,
+		ttl:          ttl,
+		privileged:   slices.Clone(cfg.Privileged),
+		capabilities: cfg.Capabilities,
+		newSession:   gouncer.NewSession,
 	}
 }
 
@@ -130,6 +134,22 @@ func (h *Handlers) RequirePrivilege(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequireCapability refuses a request whose identity lacks the capability.
+func (*Handlers) RequireCapability(capability string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !slices.Contains(IdentityFromContext(r.Context()).Capabilities, capability) {
+				RespondError(w, http.StatusForbidden, ErrorResponse{
+					Message: "capability missing", Code: "capability_missing",
+					Meta: map[string]any{"capability": capability},
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RequireSession admits only requests carrying a usable session cookie,
