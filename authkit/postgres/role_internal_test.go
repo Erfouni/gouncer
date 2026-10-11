@@ -5,9 +5,12 @@ package postgres
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pashagolub/pgxmock/v4"
+
+	"github.com/gopherium/gouncer/authkit"
 )
 
 // errBackend is the failure the mocked database answers.
@@ -24,15 +27,79 @@ func mockPool(t *testing.T) pgxmock.PgxPoolIface {
 	return mock
 }
 
-// wantBackendFailure fails t unless err wraps the mocked failure and every expectation ran.
-func wantBackendFailure(t *testing.T, mock pgxmock.PgxPoolIface, method string, err error) {
+// expectMember expects the account id to be read inside the transaction, holding the member role.
+func expectMember(mock pgxmock.PgxPoolIface, id uuid.UUID) {
+	columns := []string{"id", "email", "name", "password_hash", "disabled", "created_at", "role", "confirmed"}
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnRows(pgxmock.NewRows(columns).
+		AddRow(id, "maria@example.com", "Maria Perez", "", false, time.Now().UTC(), "member", true))
+}
+
+func TestUserStoreSetUserRoleReportsWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE auth.users").WithArgs(id, "editor").WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRole(t.Context(), id, "editor", nil)
+
+	wantError(t, mock, "SetUserRole", err, errBackend)
+}
+
+func TestUserStoreGuardedWriteReportsBeginFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin().WillReturnError(errBackend)
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
+
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
+}
+
+func TestUserStoreGuardedWriteReportsCommitFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit().WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
+
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
+}
+
+// wantError fails t unless err wraps want and every expectation ran.
+func wantError(t *testing.T, mock pgxmock.PgxPoolIface, method string, err, want error) {
 	t.Helper()
-	if !errors.Is(err, errBackend) {
-		t.Errorf("%s() error = %v, want it to wrap %v", method, err, errBackend)
+	if !errors.Is(err, want) {
+		t.Errorf("%s() error = %v, want it to wrap %v", method, err, want)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unmet expectations: %v", err)
 	}
+}
+
+func TestUserStoreSetUserRoleFromReportsReadFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
+
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
 }
 
 func TestUserStoreSetUserRoleFromReportsWriteFailure(t *testing.T) {
@@ -41,28 +108,29 @@ func TestUserStoreSetUserRoleFromReportsWriteFailure(t *testing.T) {
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").WillReturnError(errBackend)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
 
-	wantBackendFailure(t, mock, "SetUserRoleFrom", err)
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
 }
 
-func TestUserStoreSetUserRoleFromReportsLookupFailure(t *testing.T) {
+func TestUserStoreSetUserRoleFromAnswersARoleMovedAfterTheCheck(t *testing.T) {
 	t.Parallel()
 
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(errBackend)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
 
-	wantBackendFailure(t, mock, "SetUserRoleFrom", err)
+	wantError(t, mock, "SetUserRoleFrom", err, authkit.ErrRoleChanged)
 }
 
 func TestUserStoreSetUserDisabledFromReportsWriteFailure(t *testing.T) {
@@ -71,28 +139,29 @@ func TestUserStoreSetUserDisabledFromReportsWriteFailure(t *testing.T) {
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").WillReturnError(errBackend)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
 
-	wantBackendFailure(t, mock, "SetUserDisabledFrom", err)
+	wantError(t, mock, "SetUserDisabledFrom", err, errBackend)
 }
 
-func TestUserStoreSetUserDisabledFromReportsLookupFailure(t *testing.T) {
+func TestUserStoreSetUserDisabledFromAnswersARoleMovedAfterTheCheck(t *testing.T) {
 	t.Parallel()
 
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(errBackend)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
 
-	wantBackendFailure(t, mock, "SetUserDisabledFrom", err)
+	wantError(t, mock, "SetUserDisabledFrom", err, authkit.ErrRoleChanged)
 }
 
 func TestUserStoreSetUserDisabledFromReportsTokenRevokeFailure(t *testing.T) {
@@ -101,6 +170,7 @@ func TestUserStoreSetUserDisabledFromReportsTokenRevokeFailure(t *testing.T) {
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("DELETE FROM auth.sessions").WithArgs(id).WillReturnResult(pgxmock.NewResult("DELETE", 1))
@@ -109,7 +179,7 @@ func TestUserStoreSetUserDisabledFromReportsTokenRevokeFailure(t *testing.T) {
 
 	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
 
-	wantBackendFailure(t, mock, "SetUserDisabledFrom", err)
+	wantError(t, mock, "SetUserDisabledFrom", err, errBackend)
 }
 
 func TestUserStoreGuardedDisableReportsWriteFailure(t *testing.T) {
@@ -123,7 +193,7 @@ func TestUserStoreGuardedDisableReportsWriteFailure(t *testing.T) {
 
 	err := newUserStore(mock).SetUserDisabledUnderCover(t.Context(), id, true, nil)
 
-	wantBackendFailure(t, mock, "SetUserDisabledUnderCover", err)
+	wantError(t, mock, "SetUserDisabledUnderCover", err, errBackend)
 }
 
 func TestUserStoreSetUserDisabledFromReportsSessionRevokeFailure(t *testing.T) {
@@ -132,6 +202,7 @@ func TestUserStoreSetUserDisabledFromReportsSessionRevokeFailure(t *testing.T) {
 	mock := mockPool(t)
 	id := uuid.Must(uuid.NewV7())
 	mock.ExpectBegin()
+	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("DELETE FROM auth.sessions").WithArgs(id).WillReturnError(errBackend)
@@ -139,5 +210,5 @@ func TestUserStoreSetUserDisabledFromReportsSessionRevokeFailure(t *testing.T) {
 
 	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
 
-	wantBackendFailure(t, mock, "SetUserDisabledFrom", err)
+	wantError(t, mock, "SetUserDisabledFrom", err, errBackend)
 }
