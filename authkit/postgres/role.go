@@ -67,7 +67,7 @@ func (s *UserStore) SetUserRoleFrom(
 			return fmt.Errorf("postgres: set user role: %w", err)
 		}
 		if count == 0 {
-			return authkit.ErrRoleChanged
+			return missedOrMoved(ctx, queries, id)
 		}
 		return nil
 	})
@@ -88,10 +88,22 @@ func (s *UserStore) SetUserDisabledFrom(
 			return fmt.Errorf("postgres: set user disabled: %w", err)
 		}
 		if count == 0 {
-			return authkit.ErrRoleChanged
+			return missedOrMoved(ctx, queries, id)
 		}
 		return s.revoke(ctx, queries, id, disabled)
 	})
+}
+
+// missedOrMoved returns gouncer.ErrUserNotFound when no account has the id, else authkit.ErrRoleChanged.
+func missedOrMoved(ctx context.Context, queries *db.Queries, id uuid.UUID) error {
+	_, err := queries.GetUserByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gouncer.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("postgres: read user: %w", err)
+	}
+	return authkit.ErrRoleChanged
 }
 
 // anyHeld accepts an account whatever role it holds.

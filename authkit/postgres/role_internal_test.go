@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 )
 
@@ -126,11 +128,46 @@ func TestUserStoreSetUserRoleFromAnswersARoleMovedAfterTheCheck(t *testing.T) {
 	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	expectMember(mock, id)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
 
 	wantError(t, mock, "SetUserRoleFrom", err, authkit.ErrRoleChanged)
+}
+
+func TestUserStoreSetUserRoleFromAnswersAnAccountDeletedAfterTheCheck(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
+
+	wantError(t, mock, "SetUserRoleFrom", err, gouncer.ErrUserNotFound)
+}
+
+func TestUserStoreSetUserRoleFromReportsARecheckFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	mock.ExpectExec("UPDATE auth.users").WithArgs("editor", id, "member").
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(errBackend)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserRoleFrom(t.Context(), id, "member", "editor", nil)
+
+	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
 }
 
 func TestUserStoreSetUserDisabledFromReportsWriteFailure(t *testing.T) {
@@ -157,11 +194,29 @@ func TestUserStoreSetUserDisabledFromAnswersARoleMovedAfterTheCheck(t *testing.T
 	expectMember(mock, id)
 	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	expectMember(mock, id)
 	mock.ExpectRollback()
 
 	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
 
 	wantError(t, mock, "SetUserDisabledFrom", err, authkit.ErrRoleChanged)
+}
+
+func TestUserStoreSetUserDisabledFromAnswersAnAccountDeletedAfterTheCheck(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	id := uuid.Must(uuid.NewV7())
+	mock.ExpectBegin()
+	expectMember(mock, id)
+	mock.ExpectExec("UPDATE auth.users").WithArgs(true, id, "member").
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+	mock.ExpectQuery("FROM auth.users").WithArgs(id).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectRollback()
+
+	err := newUserStore(mock).SetUserDisabledFrom(t.Context(), id, "member", true, nil)
+
+	wantError(t, mock, "SetUserDisabledFrom", err, gouncer.ErrUserNotFound)
 }
 
 func TestUserStoreSetUserDisabledFromReportsTokenRevokeFailure(t *testing.T) {
