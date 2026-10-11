@@ -32,7 +32,7 @@ func Migrate(ctx context.Context, db *sql.DB, opts MigrateOptions) error {
 		Table: versionTable, FS: migrationSource, LockWait: opts.LockWait, LockPoll: opts.LockPoll,
 	})
 	if err != nil {
-		return fmt.Errorf("sqlite: apply migrations: %w", err)
+		return fmt.Errorf("sqlite: apply migrations: %w", dbsqlite.Classify(err))
 	}
 	return nil
 }
