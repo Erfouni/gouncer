@@ -7,6 +7,37 @@ minor releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `Config.Capabilities`, a `CapabilitySource` that fills
+  `Identity.Capabilities`. A source that also answers `Grantable` fills
+  `Identity.Grantable`. Without a source the JSON is unchanged.
+- `RequireCapability`, refusing a request that lacks the capability with
+  a 403, the code `capability_missing` and `meta.capability`.
+- `AdminConfig.Roles` and `InvitesConfig.Roles`, a `RoleSource`. With
+  one, `CreateAccount`, `SetAccountRole` and `Invite` refuse an
+  undeclared or empty role with `ErrUnknownRole`, answered as a 422
+  with the code `role_unknown`.
+- With a role source, `Create`, `SetRole` and `SetDisabled` answer a 403
+  with the code `role_beyond_reach` when the actor does not outrank the
+  role handed out or the role the account holds. Re-enabling also needs
+  the account to hold a declared role. The account is read through the
+  store's `UserByID` when it has one, else through `ListUsers`.
+- `ErrRoleChanged`, answered as a 409 with the code `role_changed` when
+  the account's role moved between the check and the write.
+
+### Changed
+
+- **Breaking.** `Identity` holds two lists, so it can no longer be
+  compared with `==`. Compare its `ID` instead.
+- **Breaking.** `AdminStore` gains `SetUserRoleFrom` and
+  `SetUserDisabledFrom`, which write only while the account still holds
+  the role checked, or return `ErrRoleChanged`. With a role source the
+  admin handlers write through them. `testkit` implements both and
+  `storetest` checks them.
+
 ## [0.18.0] - 2026-10-10
 
 ### Added

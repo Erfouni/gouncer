@@ -54,7 +54,7 @@ const (
 	maxPasswordLength = 1024
 )
 
-// authErrors maps each gouncer error a client may meet to its status and error body.
+// authErrors maps each gouncer and authkit error a client may meet to its status and error body.
 var authErrors = []struct {
 	err      error
 	status   int
@@ -77,10 +77,14 @@ var authErrors = []struct {
 		ErrorResponse{Message: "user not found", Code: "user_not_found"}},
 	{gouncer.ErrEmailTaken, http.StatusConflict,
 		ErrorResponse{Message: "email already in use", Code: "email_taken"}},
+	{ErrUnknownRole, http.StatusUnprocessableEntity,
+		ErrorResponse{Message: "unknown role", Code: "role_unknown", Meta: map[string]any{"field": "role"}}},
+	{ErrRoleChanged, http.StatusConflict,
+		ErrorResponse{Message: "role changed", Code: "role_changed"}},
 }
 
 // ErrorResponseForAuthError returns the HTTP status code and error body for a
-// gouncer error, reporting false for errors it does not recognize.
+// gouncer or authkit error, reporting false for errors it does not recognize.
 func ErrorResponseForAuthError(err error) (int, ErrorResponse, bool) {
 	for _, held := range authErrors {
 		if errors.Is(err, held.err) {
@@ -91,7 +95,7 @@ func ErrorResponseForAuthError(err error) (int, ErrorResponse, bool) {
 }
 
 // StatusForAuthError returns the HTTP status code and client-facing message
-// for a gouncer error, reporting false for errors it does not recognize.
+// for a gouncer or authkit error, reporting false for errors it does not recognize.
 func StatusForAuthError(err error) (int, string, bool) {
 	status, response, ok := ErrorResponseForAuthError(err)
 	return status, response.Message, ok

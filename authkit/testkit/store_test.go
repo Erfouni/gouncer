@@ -91,6 +91,14 @@ func TestEveryErrorHookFailsItsMethod(t *testing.T) {
 		}},
 		{"SetRoleErr fails SetUserRole", func(s *testkit.Store) { s.SetRoleErr = errHook },
 			func(ctx context.Context, s *testkit.Store) error { return s.SetUserRole(ctx, id, "editor", nil) }},
+		{"SetRoleErr fails SetUserRoleFrom", func(s *testkit.Store) { s.SetRoleErr = errHook },
+			func(ctx context.Context, s *testkit.Store) error {
+				return s.SetUserRoleFrom(ctx, id, "member", "editor", nil)
+			}},
+		{"SetDisabledErr fails SetUserDisabledFrom", func(s *testkit.Store) { s.SetDisabledErr = errHook },
+			func(ctx context.Context, s *testkit.Store) error {
+				return s.SetUserDisabledFrom(ctx, id, "member", true, nil)
+			}},
 		{"TokenErr fails CreateToken", func(s *testkit.Store) { s.TokenErr = errHook },
 			func(ctx context.Context, s *testkit.Store) error { return s.CreateToken(ctx, token, 1) }},
 		{"TokenErr fails ReplaceToken", func(s *testkit.Store) { s.TokenErr = errHook },

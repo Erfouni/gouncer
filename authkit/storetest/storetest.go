@@ -107,6 +107,9 @@ var checks = []check{
 	{"the store takes calls from several goroutines at once", concurrentCalls},
 	{"an account's role reads back through every read", roleOnEveryRead},
 	{"SetUserRole writes the role, and an unknown account answers ErrUserNotFound", roleWritten},
+	{"SetUserRoleFrom writes only while the account holds the role checked", roleWrittenFrom},
+	{"SetUserDisabledFrom writes only while the account holds the role checked", disabledFrom},
+	{"role changes racing from one checked role land once", racedRoleChanges},
 	{"the guard refuses to demote the last enabled privileged account and keeps its role", lastDemotion},
 	{"the guard refuses to disable the last enabled privileged account and keeps it enabled", lastDisable},
 	{"a disabled account holding a privileged role covers no other", disabledCover},
@@ -354,6 +357,58 @@ func roleWritten(t testing.TB, fixture Fixture) {
 	err := fixture.Store.SetUserRole(t.Context(), firstTwin, "editor", admins)
 	expect(t, errors.Is(err, gouncer.ErrUserNotFound), "SetUserRole() of an unknown account error = %v, "+
 		"want ErrUserNotFound", err)
+}
+
+// roleWrittenFrom fails t unless SetUserRoleFrom writes from the role checked and refuses a moved, unknown or last one.
+func roleWrittenFrom(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, holding(account("alpha@example.com", "alpha account"), "editor"))
+	lone := created(t, fixture, holding(account("bravo@example.com", "Bravo account"), "admin"))
+	must(t, fixture.Store.SetUserRoleFrom(t.Context(), alpha.ID, "editor", "author", admins), "SetUserRoleFrom")
+	moved := fixture.Store.SetUserRoleFrom(t.Context(), alpha.ID, "editor", "member", admins)
+	unknown := fixture.Store.SetUserRoleFrom(t.Context(), firstTwin, "editor", "member", admins)
+	last := fixture.Store.SetUserRoleFrom(t.Context(), lone.ID, "admin", "editor", admins)
+	expect(t, errors.Is(moved, authkit.ErrRoleChanged), "SetUserRoleFrom() from a role the account left error = %v, "+
+		"want ErrRoleChanged", moved)
+	expect(t, errors.Is(unknown, gouncer.ErrUserNotFound), "SetUserRoleFrom() of an unknown account error = %v, "+
+		"want ErrUserNotFound", unknown)
+	expect(t, errors.Is(last, gouncer.ErrLastPrivileged), "SetUserRoleFrom() of the last admin error = %v, "+
+		"want ErrLastPrivileged", last)
+	got := []gouncer.User{byID(t, fixture, alpha.ID), byID(t, fixture, lone.ID)}
+	expect(t, got[0].Role == "author" && got[1].Role == "admin", "the conditional writes left %s, want author "+
+		"then admin", describedAll(got))
+}
+
+// disabledFrom fails t unless SetUserDisabledFrom flips the flag from the role checked and refuses otherwise.
+func disabledFrom(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, holding(account("alpha@example.com", "alpha account"), "editor"))
+	lone := created(t, fixture, holding(account("bravo@example.com", "Bravo account"), "admin"))
+	session := opened(t, fixture, alpha, time.Hour)
+	must(t, fixture.Store.SetUserDisabledFrom(t.Context(), alpha.ID, "editor", true, admins), "SetUserDisabledFrom")
+	_, ended := fixture.Store.UserBySession(t.Context(), session.TokenHash, now())
+	moved := fixture.Store.SetUserDisabledFrom(t.Context(), alpha.ID, "author", false, admins)
+	unknown := fixture.Store.SetUserDisabledFrom(t.Context(), firstTwin, "editor", true, admins)
+	last := fixture.Store.SetUserDisabledFrom(t.Context(), lone.ID, "admin", true, admins)
+	expect(t, errors.Is(ended, gouncer.ErrSessionNotFound), "UserBySession() after SetUserDisabledFrom error = %v, "+
+		"want ErrSessionNotFound", ended)
+	expect(t, errors.Is(moved, authkit.ErrRoleChanged), "SetUserDisabledFrom() from a role the account does not "+
+		"hold error = %v, want ErrRoleChanged", moved)
+	expect(t, errors.Is(unknown, gouncer.ErrUserNotFound), "SetUserDisabledFrom() of an unknown account error = %v, "+
+		"want ErrUserNotFound", unknown)
+	expect(t, errors.Is(last, gouncer.ErrLastPrivileged), "SetUserDisabledFrom() of the last admin error = %v, "+
+		"want ErrLastPrivileged", last)
+	expect(t, byID(t, fixture, alpha.ID).Disabled && !byID(t, fixture, lone.ID).Disabled, "the conditional writes "+
+		"left the flags wrong, want the editor disabled and the admin enabled")
+}
+
+// racedRoleChanges fails t unless role changes racing from one checked role land exactly once.
+func racedRoleChanges(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, holding(account("alpha@example.com", "alpha account"), "member"))
+	answers := raced(func(i int) error {
+		return fixture.Store.SetUserRoleFrom(t.Context(), alpha.ID, "member", fmt.Sprintf("role-%d", i), nil)
+	})
+	won, refused := tally(answers, authkit.ErrRoleChanged)
+	expect(t, won == 1 && refused == workers-1, "the racing role changes answered %v, want one nil and "+
+		"ErrRoleChanged for the other %d", answers, workers-1)
 }
 
 // lastDemotion fails t unless demoting the last enabled privileged account answers ErrLastPrivileged, keeping the role.

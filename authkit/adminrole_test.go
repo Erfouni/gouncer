@@ -165,6 +165,33 @@ func TestSetRoleRefusesAnActorChangingItsOwnRole(t *testing.T) {
 	}
 }
 
+func TestSetRoleRefusesAMalformedRequest(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := privilegedServer(t, store, gouncer.Roles{"admin"}, "admin")
+
+	for _, held := range []struct {
+		target string
+		body   string
+		status int
+		code   string
+	}{
+		{"/api/users/not-an-id/role", `{"role":"editor"}`, http.StatusBadRequest, "user_id_malformed"},
+		{"/api/users/" + uuidZero + "/role", `{"role":`, http.StatusBadRequest, "body_malformed"},
+		{"/api/users/" + uuidZero + "/role", `{}`, http.StatusUnprocessableEntity, "body_field_required"},
+	} {
+		recorder := doRequest(t, srv, http.MethodPut, held.target, held.body)
+
+		if recorder.Code != held.status {
+			t.Errorf("PUT %s %s status = %d, want %d", held.target, held.body, recorder.Code, held.status)
+		}
+		if code := decodeBody[authkit.ErrorResponse](t, recorder).Code; code != held.code {
+			t.Errorf("PUT %s %s code = %q, want %q", held.target, held.body, code, held.code)
+		}
+	}
+}
+
 func TestSetRoleRefusesRemovingTheLastPrivilegedAccount(t *testing.T) {
 	t.Parallel()
 

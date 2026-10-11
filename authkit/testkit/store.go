@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 )
 
 // Store is an in-memory user and session store encoding the gouncer
@@ -218,6 +219,18 @@ func (s *Store) setDisabled(id uuid.UUID, disabled bool) error {
 func (s *Store) SetUserRole(_ context.Context, id uuid.UUID, role string, privileged gouncer.Roles) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.setRole(id, role, privileged, anyRole)
+}
+
+// SetUserRoleFrom writes the role of an account still holding held, under the guard.
+func (s *Store) SetUserRoleFrom(_ context.Context, id uuid.UUID, held, role string, privileged gouncer.Roles) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.setRole(id, role, privileged, stillHolds(held))
+}
+
+// setRole writes an account's role once holds accepts the account, under the guard.
+func (s *Store) setRole(id uuid.UUID, role string, privileged gouncer.Roles, holds func(gouncer.User) error) error {
 	s.CoverGiven = privileged
 	if s.SetRoleErr != nil {
 		return s.SetRoleErr
@@ -226,12 +239,30 @@ func (s *Store) SetUserRole(_ context.Context, id uuid.UUID, role string, privil
 	if !ok {
 		return gouncer.ErrUserNotFound
 	}
+	if err := holds(u); err != nil {
+		return err
+	}
 	if err := s.refuseUncovered(id, privileged, !privileged.Holds(role)); err != nil {
 		return err
 	}
 	u.Role = role
 	s.Users[id] = u
 	return nil
+}
+
+// anyRole accepts an account whatever role it holds.
+func anyRole(gouncer.User) error {
+	return nil
+}
+
+// stillHolds returns a check refusing an account that no longer holds held with authkit.ErrRoleChanged.
+func stillHolds(held string) func(gouncer.User) error {
+	return func(u gouncer.User) error {
+		if u.Role != held {
+			return authkit.ErrRoleChanged
+		}
+		return nil
+	}
 }
 
 // refuseUncovered returns gouncer.ErrLastPrivileged for a write that removes the last enabled privileged account.
@@ -441,10 +472,38 @@ func (s *Store) SetUserDisabledUnderCover(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.disableUnderCover(id, disabled, privileged, anyRole)
+}
+
+// SetUserDisabledFrom disables an account still holding held under the guard, counting the call.
+func (s *Store) SetUserDisabledFrom(
+	_ context.Context,
+	id uuid.UUID,
+	held string,
+	disabled bool,
+	privileged gouncer.Roles,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.disableUnderCover(id, disabled, privileged, stillHolds(held))
+}
+
+// disableUnderCover updates whether a known account holds accepts may log in, under the guard.
+func (s *Store) disableUnderCover(
+	id uuid.UUID,
+	disabled bool,
+	privileged gouncer.Roles,
+	holds func(gouncer.User) error,
+) error {
 	s.CoverGiven = privileged
 	s.DisabledUnderCover++
 	if s.SetDisabledErr != nil {
 		return s.SetDisabledErr
+	}
+	if u, ok := s.Users[id]; ok {
+		if err := holds(u); err != nil {
+			return err
+		}
 	}
 	if err := s.refuseUncovered(id, privileged, disabled); err != nil {
 		return err
