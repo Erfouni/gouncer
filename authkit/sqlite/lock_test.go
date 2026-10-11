@@ -42,12 +42,17 @@ func TestMigrateGivesUpOnAMigrationLockHeldPastItsWait(t *testing.T) {
 		t.Fatalf("holding the migration lock: %v", err)
 	}
 
+	start := time.Now()
 	err := sqlite.Migrate(t.Context(), db, sqlite.MigrateOptions{LockWait: 100 * time.Millisecond,
 		LockPoll: 10 * time.Millisecond})
+	waited := time.Since(start)
 
 	tables := count(t, db, "SELECT count(*) FROM sqlite_master WHERE name = 'auth_users'")
 	if err == nil || !strings.Contains(err.Error(), "migration lock") || tables != 0 {
 		t.Errorf("Migrate() behind a held lock = %v with %d users tables, want the lock named and none", err, tables)
+	}
+	if waited < 100*time.Millisecond {
+		t.Errorf("Migrate() gave up after %v, want it to wait out the lock wait of 100ms", waited)
 	}
 }
 
