@@ -8,7 +8,7 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/sqlite/vX.Y.Z`.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-11
 
 ### Added
 
@@ -22,3 +22,5 @@ Releases of this module are tagged `authkit/sqlite/vX.Y.Z`.
   `auth_tokens`, with ids as UUID text and times as UTC microseconds.
 - A busy, locked or constraint failure carries dbkit's error class, such
   as `dbkit.ErrBusy`. The PostgreSQL store does not class its failures.
+
+[0.1.0]: https://github.com/gopherium/gouncer/releases/tag/authkit%2Fsqlite%2Fv0.1.0
