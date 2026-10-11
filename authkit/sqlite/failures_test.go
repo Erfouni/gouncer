@@ -131,15 +131,15 @@ var statementFaults = []faultCase{
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
 			return s.SetUserRole(ctx, w.admin.ID, "member", nil)
 		}},
-	{"write the role from the role checked", db.SetUserRoleFrom, "set user role",
+	{"write the role from the role checked", db.SetUserRole, "set user role",
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
 			return s.SetUserRoleFrom(ctx, w.admin.ID, "admin", "member", nil)
 		}},
-	{"read whether the account moved", db.GetUserByID, "set user role",
+	{"read the role the account holds", db.GetUserByID, "set user role",
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
-			return s.SetUserRoleFrom(ctx, w.admin.ID, "editor", "member", nil)
+			return s.SetUserRoleFrom(ctx, w.admin.ID, "admin", "member", nil)
 		}},
-	{"disable from the role checked", db.SetUserDisabledFrom, "set user disabled",
+	{"disable from the role checked", db.SetUserDisabled, "set user disabled",
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
 			return s.SetUserDisabledFrom(ctx, w.admin.ID, "admin", true, nil)
 		}},

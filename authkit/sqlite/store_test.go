@@ -124,6 +124,29 @@ func TestContractErrorsComeBackWithoutTheStoresWrapping(t *testing.T) {
 	}
 }
 
+func TestAStaleHeldRoleOnTheLastAdminAnswersRoleChanged(t *testing.T) {
+	t.Parallel()
+
+	store := sqlite.NewUserStore(migrated(t))
+	admin := newAccount(t, "admin@example.com", "admin account")
+	admin.Role = "admin"
+	created(t, store, admin)
+	admins := gouncer.Roles{"admin"}
+
+	demoted := store.SetUserRoleFrom(t.Context(), admin.ID, "editor", "member", admins)
+	disabled := store.SetUserDisabledFrom(t.Context(), admin.ID, "editor", true, admins)
+
+	after, err := store.UserByID(t.Context(), admin.ID)
+	if err != nil {
+		t.Fatalf("UserByID() error = %v, want nil", err)
+	}
+	if demoted != authkit.ErrRoleChanged || disabled != authkit.ErrRoleChanged || after.Role != "admin" ||
+		after.Disabled {
+		t.Errorf("writes from a role the last admin never held answered %v and %v and left role %q disabled %t, "+
+			"want authkit.ErrRoleChanged twice and the admin untouched", demoted, disabled, after.Role, after.Disabled)
+	}
+}
+
 func TestUserStoreListsNamesThatDifferOnlyInCaseByID(t *testing.T) {
 	t.Parallel()
 
