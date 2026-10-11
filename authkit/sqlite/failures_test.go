@@ -131,6 +131,18 @@ var statementFaults = []faultCase{
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
 			return s.SetUserRole(ctx, w.admin.ID, "member", nil)
 		}},
+	{"write the role from the role checked", db.SetUserRoleFrom, "set user role",
+		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
+			return s.SetUserRoleFrom(ctx, w.admin.ID, "admin", "member", nil)
+		}},
+	{"read whether the account moved", db.GetUserByID, "set user role",
+		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
+			return s.SetUserRoleFrom(ctx, w.admin.ID, "editor", "member", nil)
+		}},
+	{"disable from the role checked", db.SetUserDisabledFrom, "set user disabled",
+		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
+			return s.SetUserDisabledFrom(ctx, w.admin.ID, "admin", true, nil)
+		}},
 	{"read whether the account is privileged", db.HoldsPrivilege, "set user role",
 		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
 			return s.SetUserRole(ctx, w.admin.ID, "member", gouncer.Roles{"admin"})
@@ -258,7 +270,7 @@ func TestAFailedCommitReachesTheCallerAndKeepsNothing(t *testing.T) {
 	}
 }
 
-func TestACancelledContextReachesTheCallerFromATransaction(t *testing.T) {
+func TestACancelledContextReachesTheCallerBeforeTheTransactionBegins(t *testing.T) {
 	t.Parallel()
 
 	store, _, world := faultyStore(t)

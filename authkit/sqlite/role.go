@@ -4,11 +4,14 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/sqlite/internal/db"
 )
 
@@ -35,6 +38,46 @@ func (s *UserStore) SetUserDisabledUnderCover(
 ) error {
 	return s.underCover(ctx, "set user disabled", id, privileged, disabled, func(queries *db.Queries) error {
 		return disable(ctx, queries, id, disabled)
+	})
+}
+
+// SetUserRoleFrom writes the role of an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserRoleFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held, role string,
+	privileged gouncer.Roles,
+) error {
+	return s.underCover(ctx, "set user role", id, privileged, !privileged.Holds(role), func(queries *db.Queries) error {
+		count, err := queries.SetUserRoleFrom(ctx, db.SetUserRoleFromParams{Role: role, ID: id, Held: held})
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return nil
+	})
+}
+
+// SetUserDisabledFrom disables an account still holding held, refusing to leave no enabled account privileged.
+func (s *UserStore) SetUserDisabledFrom(
+	ctx context.Context,
+	id uuid.UUID,
+	held string,
+	disabled bool,
+	privileged gouncer.Roles,
+) error {
+	return s.underCover(ctx, "set user disabled", id, privileged, disabled, func(queries *db.Queries) error {
+		params := db.SetUserDisabledFromParams{Disabled: disabled, ID: id, Held: held}
+		count, err := queries.SetUserDisabledFrom(ctx, params)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return missedOrMoved(ctx, queries, id)
+		}
+		return revoke(ctx, queries, id, disabled)
 	})
 }
 
@@ -91,6 +134,18 @@ func refuseUncovered(
 		return gouncer.ErrLastPrivileged
 	}
 	return nil
+}
+
+// missedOrMoved returns gouncer.ErrUserNotFound when no account has the id, else authkit.ErrRoleChanged.
+func missedOrMoved(ctx context.Context, queries *db.Queries, id uuid.UUID) error {
+	_, err := queries.GetUserByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return gouncer.ErrUserNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return authkit.ErrRoleChanged
 }
 
 // jsonList returns values as the JSON array text that json_each reads.

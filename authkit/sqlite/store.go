@@ -14,6 +14,7 @@ import (
 	dbsqlite "github.com/gopherium/framework/dbkit/sqlite"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/sqlite/internal/db"
 )
 
@@ -146,6 +147,11 @@ func disable(ctx context.Context, queries *db.Queries, id uuid.UUID, disabled bo
 	if count == 0 {
 		return gouncer.ErrUserNotFound
 	}
+	return revoke(ctx, queries, id, disabled)
+}
+
+// revoke deletes the sessions and tokens of an account that is now disabled.
+func revoke(ctx context.Context, queries *db.Queries, id uuid.UUID, disabled bool) error {
 	if !disabled {
 		return nil
 	}
@@ -183,10 +189,11 @@ func failed(action string, err error) error {
 	return fmt.Errorf("sqlite: %s: %w", action, dbsqlite.Classify(err))
 }
 
-// isSentinel reports whether err is a gouncer contract error the caller matches on.
+// isSentinel reports whether err is a gouncer or authkit contract error the caller matches on.
 func isSentinel(err error) bool {
 	return errors.Is(err, gouncer.ErrTokenExists) ||
 		errors.Is(err, gouncer.ErrTokenNotFound) ||
 		errors.Is(err, gouncer.ErrUserNotFound) ||
-		errors.Is(err, gouncer.ErrLastPrivileged)
+		errors.Is(err, gouncer.ErrLastPrivileged) ||
+		errors.Is(err, authkit.ErrRoleChanged)
 }
