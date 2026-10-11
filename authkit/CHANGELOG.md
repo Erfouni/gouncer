@@ -23,12 +23,20 @@ Releases of this module are tagged `authkit/vX.Y.Z`.
 - With a role source, `Create`, `SetRole` and `SetDisabled` answer a 403
   with the code `role_beyond_reach` when the actor does not outrank the
   role handed out or the role the account holds. Re-enabling also needs
-  the account to hold a declared role.
+  the account to hold a declared role. The account is read through the
+  store's `UserByID` when it has one, else through `ListUsers`.
+- `ErrRoleChanged`, answered as a 409 with the code `role_changed` when
+  the account's role moved between the check and the write.
 
 ### Changed
 
 - **Breaking.** `Identity` holds two lists, so it can no longer be
   compared with `==`. Compare its `ID` instead.
+- **Breaking.** `AdminStore` gains `SetUserRoleFrom` and
+  `SetUserDisabledFrom`, which write only while the account still holds
+  the role checked, or return `ErrRoleChanged`. With a role source the
+  admin handlers write through them. `testkit` implements both and
+  `storetest` checks them.
 
 ## [0.18.0] - 2026-10-10
 
