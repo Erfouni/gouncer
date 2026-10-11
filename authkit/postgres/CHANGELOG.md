@@ -8,6 +8,18 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/postgres/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `SetUserRoleFrom` and `SetUserDisabledFrom`, which write only while
+  the account still holds the role checked, or return
+  `authkit.ErrRoleChanged`.
+
+### Changed
+
+- Requires authkit v0.19.0.
+
 ## [0.12.0] - 2026-10-11
 
 ### Changed
