@@ -13,7 +13,17 @@ import (
 	dbsqlite "github.com/gopherium/framework/dbkit/sqlite"
 	"github.com/gopherium/framework/dbkit/sqlite/sqlitetest"
 
+	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/sqlite"
+)
+
+var (
+	_ gouncer.Store         = (*sqlite.UserStore)(nil)
+	_ authkit.AdminStore    = (*sqlite.UserStore)(nil)
+	_ authkit.SessionReaper = (*sqlite.UserStore)(nil)
+	_ authkit.InviteStore   = (*sqlite.UserStore)(nil)
+	_ authkit.TokenReaper   = (*sqlite.UserStore)(nil)
 )
 
 // testMigrate is how every test run of Migrate waits for the migration lock.
@@ -43,11 +53,11 @@ func mustExec(t *testing.T, db *sql.DB, statement string, args ...any) {
 	}
 }
 
-// count returns the single integer lookup answers on db.
-func count(t *testing.T, db *sql.DB, lookup string) int {
+// count returns the single integer lookup with args answers on db.
+func count(t *testing.T, db *sql.DB, lookup string, args ...any) int {
 	t.Helper()
 	var n int
-	if err := db.QueryRowContext(t.Context(), lookup).Scan(&n); err != nil {
+	if err := db.QueryRowContext(t.Context(), lookup, args...).Scan(&n); err != nil {
 		t.Fatalf("%s: %v", lookup, err)
 	}
 	return n
