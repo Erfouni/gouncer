@@ -7,6 +7,29 @@ minor releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `Config.Capabilities`, a `CapabilitySource` that fills
+  `Identity.Capabilities`. A source that also answers `Grantable` fills
+  `Identity.Grantable`. Without a source the JSON is unchanged.
+- `RequireCapability`, refusing a request that lacks the capability with
+  a 403, the code `capability_missing` and `meta.capability`.
+- `AdminConfig.Roles` and `InvitesConfig.Roles`, a `RoleSource`. With
+  one, `CreateAccount`, `SetAccountRole` and `Invite` refuse an
+  undeclared or empty role with `ErrUnknownRole`, answered as a 422
+  with the code `role_unknown`.
+- With a role source, `Create`, `SetRole` and `SetDisabled` answer a 403
+  with the code `role_beyond_reach` when the actor does not outrank the
+  role handed out or the role the account holds. Re-enabling also needs
+  the account to hold a declared role.
+
+### Changed
+
+- **Breaking.** `Identity` holds two lists, so it can no longer be
+  compared with `==`. Compare its `ID` instead.
+
 ## [0.18.0] - 2026-10-10
 
 ### Added
