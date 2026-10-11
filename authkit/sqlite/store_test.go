@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/sqlite"
 )
 
@@ -103,6 +104,23 @@ func TestTheStoreKeepsEveryTimeAsMicrosecondsSinceTheEpoch(t *testing.T) {
 			t.Errorf("%s.%s is %s %d, want the integer %d", stored.table, stored.column, kind, value,
 				stored.want.UnixMicro())
 		}
+	}
+}
+
+func TestContractErrorsComeBackWithoutTheStoresWrapping(t *testing.T) {
+	t.Parallel()
+
+	store := sqlite.NewUserStore(migrated(t))
+	editor := newAccount(t, "editor@example.com", "editor account")
+	editor.Role = "editor"
+	created(t, store, editor)
+
+	moved := store.SetUserRoleFrom(t.Context(), editor.ID, "author", "member", nil)
+	unknown := store.SetUserDisabled(t.Context(), uuid.MustParse("019a0000-0000-7000-8000-000000000009"), true)
+
+	if moved != authkit.ErrRoleChanged || unknown != gouncer.ErrUserNotFound {
+		t.Errorf("a moved role answered %v and an unknown account %v, want authkit.ErrRoleChanged and "+
+			"gouncer.ErrUserNotFound as they are", moved, unknown)
 	}
 }
 
