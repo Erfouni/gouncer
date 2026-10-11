@@ -76,7 +76,7 @@ func (s *UserStore) ResetByToken(
 	return s.redeem(ctx, "reset by token", tokenHash, gouncer.PurposeReset, now,
 		func(queries *db.Queries, id uuid.UUID) (int64, error) {
 			count, err := queries.SetUserPassword(ctx, db.SetUserPasswordParams{PasswordHash: passwordHash, ID: id})
-			if err != nil || count == 0 {
+			if err != nil {
 				return count, err
 			}
 			if err := queries.DeleteUserSessions(ctx, id); err != nil {
