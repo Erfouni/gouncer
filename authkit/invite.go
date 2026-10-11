@@ -64,6 +64,8 @@ type InvitesConfig struct {
 	ResetTTL time.Duration
 	// ResetTokensLive is how many reset tokens may stand at once. Anything below one applies 1.
 	ResetTokensLive int
+	// Roles answers which roles exist. Nil checks none.
+	Roles RoleSource
 }
 
 // Invites offers the invite and reset flows over a store. The token
@@ -73,6 +75,7 @@ type Invites struct {
 	inviteTTL time.Duration
 	resetTTL  time.Duration
 	resetLive int
+	roles     RoleSource
 }
 
 // NewInvites returns Invites over cfg's store with its lifetimes.
@@ -89,12 +92,21 @@ func NewInvites(cfg InvitesConfig) *Invites {
 	if resetLive < 1 {
 		resetLive = 1
 	}
-	return &Invites{store: cfg.Store, inviteTTL: inviteTTL, resetTTL: resetTTL, resetLive: resetLive}
+	return &Invites{
+		store:     cfg.Store,
+		inviteTTL: inviteTTL,
+		resetTTL:  resetTTL,
+		resetLive: resetLive,
+		roles:     cfg.Roles,
+	}
 }
 
 // Invite creates an unconfirmed account under the role and answers the
-// token whose secret activates it.
+// token whose secret activates it, refusing a role the role source does not declare.
 func (i *Invites) Invite(ctx context.Context, email, name, role string) (gouncer.Token, error) {
+	if !declared(i.roles, role) {
+		return gouncer.Token{}, ErrUnknownRole
+	}
 	u, err := gouncer.NewInvitedUser(email, name)
 	if err != nil {
 		return gouncer.Token{}, err

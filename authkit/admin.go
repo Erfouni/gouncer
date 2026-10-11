@@ -34,6 +34,8 @@ type AdminConfig struct {
 	Store AdminStore
 	// Privileged names the roles an administrator holds. Empty admits every role.
 	Privileged gouncer.Roles
+	// Roles answers which roles exist and which a caller may hand out. Nil checks neither.
+	Roles RoleSource
 }
 
 // AdminHandlers serves user administration over HTTP. Mount its handlers
@@ -41,11 +43,12 @@ type AdminConfig struct {
 type AdminHandlers struct {
 	store      AdminStore
 	privileged gouncer.Roles
+	roles      RoleSource
 }
 
 // NewAdmin returns AdminHandlers administering the accounts cfg names.
 func NewAdmin(cfg AdminConfig) *AdminHandlers {
-	return &AdminHandlers{store: cfg.Store, privileged: slices.Clone(cfg.Privileged)}
+	return &AdminHandlers{store: cfg.Store, privileged: slices.Clone(cfg.Privileged), roles: cfg.Roles}
 }
 
 // refuseUnprivileged reports whether it refused an actor holding no privileged role.
@@ -97,8 +100,11 @@ func (a *AdminHandlers) ListAccounts(ctx context.Context) ([]Account, error) {
 	return accounts, nil
 }
 
-// CreateAccount validates and persists a new user account.
+// CreateAccount validates and persists a new user account, refusing a role the role source does not declare.
 func (a *AdminHandlers) CreateAccount(ctx context.Context, email, name, password, role string) (Account, error) {
+	if !declared(a.roles, role) {
+		return Account{}, ErrUnknownRole
+	}
 	u, err := gouncer.NewUser(email, name, password)
 	if err != nil {
 		return Account{}, err
@@ -121,10 +127,13 @@ func (a *AdminHandlers) SetAccountDisabled(ctx context.Context, actorID, id uuid
 // ErrSelfRole reports an account changing its own role.
 var ErrSelfRole = errors.New("authkit: cannot change your own role")
 
-// SetAccountRole writes the role an account holds, refusing an actor changing its own.
+// SetAccountRole writes the role an account holds, refusing an actor changing its own and an undeclared role.
 func (a *AdminHandlers) SetAccountRole(ctx context.Context, actorID, id uuid.UUID, role string) error {
 	if actorID == id {
 		return ErrSelfRole
+	}
+	if !declared(a.roles, role) {
+		return ErrUnknownRole
 	}
 	return a.store.SetUserRole(ctx, id, role, a.privileged)
 }
@@ -157,6 +166,9 @@ func (a *AdminHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	req, err := Decode[request](w, r)
 	if err != nil {
 		respondDecodeError(w, err, "malformed json")
+		return
+	}
+	if a.refuseHandout(w, r, req.Role) {
 		return
 	}
 	account, err := a.CreateAccount(r.Context(), req.Email, req.Name, req.Password, req.Role)
@@ -192,6 +204,9 @@ func (a *AdminHandlers) SetDisabled(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Message: "disabled is required", Code: "body_field_required", Meta: map[string]any{"field": "disabled"},
 		})
+		return
+	}
+	if a.refuseAccountBeyondReach(w, r, id, !*req.Disabled) {
 		return
 	}
 	actor := IdentityFromContext(r.Context())
@@ -247,6 +262,9 @@ func (a *AdminHandlers) SetRole(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Message: "role is required", Code: "body_field_required", Meta: map[string]any{"field": "role"},
 		})
+		return
+	}
+	if a.refuseRoleChange(w, r, id, *req.Role) {
 		return
 	}
 	actor := IdentityFromContext(r.Context())
