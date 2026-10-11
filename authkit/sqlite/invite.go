@@ -141,12 +141,8 @@ func (s *UserStore) redeem(
 		if err := holdEnabled(ctx, queries, held); err != nil {
 			return err
 		}
-		spent, err := queries.DeleteToken(ctx, tokenHash)
-		if err != nil {
+		if _, err := queries.DeleteToken(ctx, tokenHash); err != nil {
 			return err
-		}
-		if spent == 0 {
-			return gouncer.ErrTokenNotFound
 		}
 		count, err := write(queries, held)
 		if err != nil {
