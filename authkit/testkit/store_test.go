@@ -67,6 +67,8 @@ func TestEveryErrorHookFailsItsMethod(t *testing.T) {
 			func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByEmail(ctx, user.Email)) }},
 		{"LookupErr fails UserByID", func(s *testkit.Store) { s.LookupErr = errHook },
 			func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByID(ctx, id)) }},
+		{"LookupErr fails UsersByIDs", func(s *testkit.Store) { s.LookupErr = errHook },
+			func(ctx context.Context, s *testkit.Store) error { return errOf(s.UsersByIDs(ctx, []uuid.UUID{id})) }},
 		{"CreateSessionErr fails CreateSession", func(s *testkit.Store) { s.CreateSessionErr = errHook },
 			func(ctx context.Context, s *testkit.Store) error { return s.CreateSession(ctx, gouncer.Session{}) }},
 		{"SessionErr fails UserBySession", func(s *testkit.Store) { s.SessionErr = errHook },
