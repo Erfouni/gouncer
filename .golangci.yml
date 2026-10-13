@@ -34,6 +34,13 @@ linters:
             - github.com/google/uuid
             - golang.org/x/crypto
             - github.com/gopherium/gouncer
+        avatar-purity:
+          list-mode: strict
+          files:
+            - "**/avatar/*.go"
+          allow:
+            - $gostd
+            - github.com/gopherium/gouncer/avatar
   exclusions:
     rules:
       - path: _test\.go

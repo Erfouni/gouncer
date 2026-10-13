@@ -24,7 +24,7 @@ var ErrTokenLifetime = errors.New("gouncer: token lifetime not positive")
 // it is unknown, expired, or already consumed.
 var ErrTokenNotFound = errors.New("gouncer: token not found")
 
-// ErrTokenExists reports that the user already holds a live token for the purpose.
+// ErrTokenExists reports that the user already holds as many live tokens for the purpose as the store admits.
 var ErrTokenExists = errors.New("gouncer: token already exists")
 
 // TokenPurpose names what redeeming a token does.

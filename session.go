@@ -46,8 +46,7 @@ func NewSession(userID uuid.UUID) (Session, error) {
 	}, nil
 }
 
-// HashToken returns the digest under which a session token is persisted
-// and looked up.
+// HashToken returns the SHA-256 digest under which a session or single-use token is stored and looked up.
 func HashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
