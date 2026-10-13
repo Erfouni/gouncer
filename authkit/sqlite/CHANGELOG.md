@@ -8,6 +8,17 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/sqlite/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `UsersByIDs`, reading many accounts by id in one query without their
+  password hashes, disabled and unconfirmed ones too.
+
+### Changed
+
+- Requires authkit v0.20.0.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added
