@@ -86,19 +86,37 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
 	if err != nil {
 		return nil, failed("list users", err)
 	}
+	return listedUsers(rows), nil
+}
+
+// UsersByIDs returns each user an id names once, disabled or unconfirmed too, without password hashes, in no set order.
+func (s *UserStore) UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]gouncer.User, error) {
+	if len(ids) == 0 {
+		return []gouncer.User{}, nil
+	}
+	rows, err := s.queries.ListUsersByIDs(ctx, jsonList(ids))
+	if err != nil {
+		return nil, failed("list users by ids", err)
+	}
+	return listedUsers(rows), nil
+}
+
+// listedUsers converts generated listing rows into domain users, which carry no password hash.
+func listedUsers[R db.ListUsersRow | db.ListUsersByIDsRow](rows []R) []gouncer.User {
 	users := make([]gouncer.User, len(rows))
 	for i, row := range rows {
+		listed := db.ListUsersRow(row)
 		users[i] = gouncer.User{
-			ID:        row.ID,
-			Email:     row.Email,
-			Name:      row.Name,
-			Disabled:  row.Disabled,
-			Confirmed: row.Confirmed,
-			Role:      row.Role,
-			CreatedAt: row.CreatedAt.Time,
+			ID:        listed.ID,
+			Email:     listed.Email,
+			Name:      listed.Name,
+			Disabled:  listed.Disabled,
+			Confirmed: listed.Confirmed,
+			Role:      listed.Role,
+			CreatedAt: listed.CreatedAt.Time,
 		}
 	}
-	return users, nil
+	return users
 }
 
 // SetUserDisabled writes whether the user may log in, ending its sessions and tokens on a disable.

@@ -19,6 +19,11 @@ SELECT id, email, name, disabled, confirmed, created_at, role
 FROM auth_users
 ORDER BY name COLLATE NOCASE, id;
 
+-- name: ListUsersByIDs :many
+SELECT id, email, name, disabled, confirmed, created_at, role
+FROM auth_users
+WHERE id IN (SELECT value FROM json_each(CAST(sqlc.arg(ids) AS TEXT)));
+
 -- name: SetUserDisabled :execrows
 UPDATE auth_users
 SET disabled = ?
