@@ -54,7 +54,7 @@ type Store interface {
 	authkit.TokenReaper
 	// UserByID returns the account with id, disabled or not, or gouncer.ErrUserNotFound.
 	UserByID(ctx context.Context, id uuid.UUID) (gouncer.User, error)
-	// UsersByIDs returns the accounts holding ids, disabled or unconfirmed too, without password hashes, in no set order.
+	// UsersByIDs returns each account an id names once, in any state and order, without its hash, skipping unknown ids.
 	UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]gouncer.User, error)
 	// SetUserDisabled updates whether the account may log in and ends its sessions on disable.
 	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error
