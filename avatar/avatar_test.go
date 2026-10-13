@@ -117,6 +117,53 @@ func TestInitialsKeepTheirColourWhateverTheCase(t *testing.T) {
 	}
 }
 
+func TestInitialsLowercaseAsGodminDoesBeforeTheyPickAColour(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, circle string
+	}{
+		{"ΜΑΡΙΑ ΠΕΡΕΣ", "#964c9a"},
+		{"Μαρια Περες", "#964c9a"},
+		{"ΣΑΣ", "#964c9a"},
+		{"ΣΑΣ.", "#3b59e4"},
+		{"ΣΑΣ.Α", "#996800"},
+		{"Σ", "#007017"},
+		{"Α.Σ", "#007017"},
+		{"Α\U00000301Σ", "#3b59e4"},
+		{"ΑΣ\U00000301", "#3b59e4"},
+		{"ΑΣ Α", "#996800"},
+		{"İMaria Perez", "#964c9a"},
+	}
+	for _, tt := range tests {
+		image, _ := drawn(t, avatar.Address(tt.name, "", 32, avatar.Options{}))
+		if got := image.Circle.Fill; got != tt.circle {
+			t.Errorf("Address(%q) paints the circle %s, want %s as godmin does", tt.name, got, tt.circle)
+		}
+	}
+}
+
+func TestInitialsTrimTheNameAsGodminDoes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, letter string
+		want         paint
+	}{
+		{"\U0000FEFFMaria Perez", "M", paint{"#c6396e", "#ecfaf4"}},
+		{"\u0085Maria Perez", "\u0085", paint{"#007017", "#ffffff"}},
+	}
+	for _, tt := range tests {
+		image, _ := drawn(t, avatar.Address(tt.name, "", 32, avatar.Options{}))
+		if got := paintOf(image); got != tt.want {
+			t.Errorf("Address(%q) paints %+v, want %+v", tt.name, got, tt.want)
+		}
+		if got := letterOf(image); got != tt.letter {
+			t.Errorf("Address(%q) draws %q, want %q", tt.name, got, tt.letter)
+		}
+	}
+}
+
 func TestInitialsDrawTheFirstLetterOfTheNameInCapitals(t *testing.T) {
 	t.Parallel()
 
@@ -178,7 +225,7 @@ func TestInitialsAddressesAreBase64SoNoFragmentCutsThem(t *testing.T) {
 	}
 }
 
-func TestInitialsScaleToTheSizeWithTheLetterAtTwelveThirtySecondsInBold(t *testing.T) {
+func TestInitialsScaleToTheSizeWithTheLetterAtTwelveThirtySecondsInSemibold(t *testing.T) {
 	t.Parallel()
 
 	image, _ := drawn(t, avatar.Address("Maria Perez", "", 48, avatar.Options{}))
@@ -231,6 +278,9 @@ func TestGravatarAddressesFollowWordPress(t *testing.T) {
 		{"Gravatar's initials rated X",
 			avatar.Options{Mode: avatar.ModeGravatar, Default: avatar.DefaultInitials, Rating: avatar.RatingX},
 			gravatarBase + "?s=48&d=initials&r=x&initials=MP"},
+		{"a rating holding an ampersand",
+			avatar.Options{Mode: avatar.ModeGravatar, Rating: "G&D=X"},
+			gravatarBase + "?s=48&d=mm&r=g%26d%3Dx"},
 	}
 	for _, tt := range tests {
 		if got := avatar.Address("Maria Perez", "reader@example.com", 48, tt.options); got != tt.want {

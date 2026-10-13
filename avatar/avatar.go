@@ -20,7 +20,7 @@ var ErrUnknownDefault = errors.New("avatar: unknown default image")
 var ErrUnknownRating = errors.New("avatar: unknown rating")
 
 // ErrSize reports a size that is not a whole number from MinSize to MaxSize.
-var ErrSize = errors.New("avatar: size out of range")
+var ErrSize = errors.New("avatar: invalid size")
 
 // Mode is how an avatar is drawn, any value but gravatar and off drawing initials.
 type Mode string
@@ -79,7 +79,7 @@ var defaults = []Default{
 // ratings are the ratings ParseRating knows, the default first.
 var ratings = []Rating{RatingG, RatingPG, RatingR, RatingX}
 
-// Options is how a site draws its avatars, each zero field meaning its WordPress default.
+// Options is how a site draws its avatars, a zero Mode drawing initials and other zero fields their WordPress default.
 type Options struct {
 	Mode    Mode
 	Default Default
@@ -123,7 +123,7 @@ func Address(name, email string, size int, options Options) string {
 	case ModeOff:
 		return ""
 	case ModeGravatar:
-		return gravatarAddress(email, gravatarQuery(name, size, options))
+		return gravatarHost + emailHash(email) + "?" + gravatarQuery(name, size, options)
 	default:
 		return initialsAddress(name, size)
 	}

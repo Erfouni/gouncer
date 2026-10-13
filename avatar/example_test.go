@@ -19,6 +19,16 @@ func ExampleAddress() {
 	// s=48&d=identicon&r=pg
 }
 
+func ExampleParseSize() {
+	size, err := avatar.ParseSize("48")
+	fmt.Println(size, err)
+	_, err = avatar.ParseSize("48px")
+	fmt.Println(err)
+	// Output:
+	// 48 <nil>
+	// avatar: invalid size "48px"
+}
+
 func ExampleParseMode() {
 	mode, err := avatar.ParseMode("")
 	fmt.Println(mode, err)

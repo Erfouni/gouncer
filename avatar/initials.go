@@ -32,7 +32,7 @@ const fontFamily = "-apple-system, system-ui, 'Segoe UI', 'Roboto', 'Oxygen-Sans
 
 // initialsAddress returns the data address of a round SVG showing the first letter of name, size pixels wide.
 func initialsAddress(name string, size int) string {
-	name = strings.TrimSpace(name)
+	name = strings.TrimFunc(name, isJavaScriptSpace)
 	pair := palette[colourIndex(name)]
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 32 32">`+
 		`<circle cx="16" cy="16" r="16" fill="%s"/>%s</svg>`, size, size, pair.circle, letterText(name, pair.letter))
@@ -63,7 +63,7 @@ func firstLetter(name string) string {
 // colourIndex returns the palette entry name picks, whatever its case, as godmin picks it.
 func colourIndex(name string) int {
 	var hash int64
-	for _, r := range strings.ToLower(name) {
+	for _, r := range lowerAsJavaScript([]rune(name)) {
 		hash = (hash*31 + int64(r)) % 2147483647
 	}
 	return int(hash % int64(len(palette)))
