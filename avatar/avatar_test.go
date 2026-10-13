@@ -143,6 +143,14 @@ func TestInitialsLowercaseAsGodminDoesBeforeTheyPickAColour(t *testing.T) {
 	}
 }
 
+func TestInitialsAllocateAboutAlikeForAThousandFinalSigmas(t *testing.T) {
+	plain := testing.AllocsPerRun(20, func() { avatar.Address(strings.Repeat("ΑΒ ", 1000), "", 32, avatar.Options{}) })
+	sigmas := testing.AllocsPerRun(20, func() { avatar.Address(strings.Repeat("ΑΣ ", 1000), "", 32, avatar.Options{}) })
+	if sigmas > 2*plain {
+		t.Errorf("Address() allocates %v times for 1000 final sigmas and %v for none, want them about alike", sigmas, plain)
+	}
+}
+
 func TestInitialsTrimTheNameAsGodminDoes(t *testing.T) {
 	t.Parallel()
 

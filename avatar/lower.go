@@ -3,6 +3,7 @@
 package avatar
 
 import (
+	"iter"
 	"slices"
 	"unicode"
 )
@@ -43,13 +44,11 @@ func lowerAsJavaScript(runes []rune) []rune {
 
 // endsWord reports whether a cased letter comes before the character at i and none comes after it in its word.
 func endsWord(runes []rune, i int) bool {
-	before := slices.Clone(runes[:i])
-	slices.Reverse(before)
-	return casedFirst(before) && !casedFirst(runes[i+1:])
+	return casedFirst(slices.Backward(runes[:i])) && !casedFirst(slices.All(runes[i+1:]))
 }
 
-// casedFirst reports whether the first character of runes that is not case-ignorable is a cased letter.
-func casedFirst(runes []rune) bool {
+// casedFirst reports whether the first character runes yields that is not case-ignorable is a cased letter.
+func casedFirst(runes iter.Seq2[int, rune]) bool {
 	for _, r := range runes {
 		if !caseIgnorable(r) {
 			return unicode.In(r, unicode.Lu, unicode.Ll, unicode.Lt, unicode.Other_Lowercase, unicode.Other_Uppercase)
