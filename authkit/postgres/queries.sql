@@ -19,6 +19,11 @@ SELECT id, email, name, disabled, confirmed, created_at, role
 FROM auth.users
 ORDER BY lower(name COLLATE "C") COLLATE "default", id;
 
+-- name: ListUsersByIDs :many
+SELECT id, email, name, disabled, confirmed, created_at, role
+FROM auth.users
+WHERE id = ANY(CAST(sqlc.arg(ids) AS uuid[]));
+
 -- name: SetUserDisabled :execrows
 UPDATE auth.users
 SET disabled = $2

@@ -414,6 +414,50 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	return items, nil
 }
 
+const listUsersByIDs = `-- name: ListUsersByIDs :many
+SELECT id, email, name, disabled, confirmed, created_at, role
+FROM auth.users
+WHERE id = ANY(CAST($1 AS uuid[]))
+`
+
+type ListUsersByIDsRow struct {
+	ID        uuid.UUID
+	Email     string
+	Name      string
+	Disabled  bool
+	Confirmed bool
+	CreatedAt time.Time
+	Role      string
+}
+
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]ListUsersByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersByIDsRow
+	for rows.Next() {
+		var i ListUsersByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.Disabled,
+			&i.Confirmed,
+			&i.CreatedAt,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockEnabledUser = `-- name: LockEnabledUser :one
 SELECT id
 FROM auth.users

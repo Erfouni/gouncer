@@ -456,6 +456,53 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	return items, nil
 }
 
+const ListUsersByIDs = `-- name: ListUsersByIDs :many
+SELECT id, email, name, disabled, confirmed, created_at, role
+FROM auth_users
+WHERE id IN (SELECT value FROM json_each(CAST(?1 AS TEXT)))
+`
+
+type ListUsersByIDsRow struct {
+	ID        uuid.UUID
+	Email     string
+	Name      string
+	Disabled  bool
+	Confirmed bool
+	CreatedAt dbkit.Time
+	Role      string
+}
+
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids string) ([]ListUsersByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ListUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersByIDsRow
+	for rows.Next() {
+		var i ListUsersByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.Disabled,
+			&i.Confirmed,
+			&i.CreatedAt,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const LockEnabledUser = `-- name: LockEnabledUser :one
 SELECT id
 FROM auth_users

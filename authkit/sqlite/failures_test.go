@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/framework/dbkit/sqlite/sqlitetest"
 
 	"github.com/gopherium/gouncer"
@@ -102,6 +104,10 @@ var statementFaults = []faultCase{
 	{"list users", db.ListUsers, "list users",
 		func(ctx context.Context, s *sqlite.UserStore, _ faultWorld) error {
 			return ignoreValue(s.ListUsers(ctx))
+		}},
+	{"list users by ids", db.ListUsersByIDs, "list users by ids",
+		func(ctx context.Context, s *sqlite.UserStore, w faultWorld) error {
+			return ignoreValue(s.UsersByIDs(ctx, []uuid.UUID{w.admin.ID}))
 		}},
 	{"delete expired sessions", db.DeleteExpiredSessions, "delete expired sessions",
 		func(ctx context.Context, s *sqlite.UserStore, _ faultWorld) error {
