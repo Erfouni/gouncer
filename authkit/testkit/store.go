@@ -115,6 +115,23 @@ func (s *Store) UserByID(_ context.Context, id uuid.UUID) (gouncer.User, error) 
 	return u, nil
 }
 
+// UsersByIDs returns the accounts holding ids, disabled or unconfirmed too, with password hashes stripped.
+func (s *Store) UsersByIDs(_ context.Context, ids []uuid.UUID) ([]gouncer.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.LookupErr != nil {
+		return nil, s.LookupErr
+	}
+	held := map[uuid.UUID]gouncer.User{}
+	for _, id := range ids {
+		if u, ok := s.Users[id]; ok {
+			u.PasswordHash = ""
+			held[id] = u
+		}
+	}
+	return slices.Collect(maps.Values(held)), nil
+}
+
 // CreateSession stores sess.
 func (s *Store) CreateSession(_ context.Context, sess gouncer.Session) error {
 	s.mu.Lock()

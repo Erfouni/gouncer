@@ -7,6 +7,14 @@ minor releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking.** `storetest.Store` gains `UsersByIDs`, which reads many
+  accounts by id in one call without their password hashes. `testkit`
+  implements it and `storetest` checks it.
+
 ## [0.19.0] - 2026-10-11
 
 ### Added

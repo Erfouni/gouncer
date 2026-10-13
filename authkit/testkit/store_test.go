@@ -50,81 +50,96 @@ func TestTheStoreKeepsTheContract(t *testing.T) {
 	})
 }
 
+// hookID is the account every hook case asks the store about.
+var hookID = uuid.Must(uuid.NewV7())
+
+// hookUser is the account every hook case stores or reads.
+var hookUser = gouncer.User{ID: hookID, Email: "alpha@example.com", Name: "alpha account"}
+
+// hookToken is the token every hook case stores or spends.
+var hookToken = gouncer.Token{TokenHash: gouncer.HashToken("token"), UserID: hookID, Purpose: gouncer.PurposeReset}
+
+// hookCase is one error hook set on a store and a call it fails.
+type hookCase struct {
+	name string
+	set  func(store *testkit.Store)
+	call func(ctx context.Context, store *testkit.Store) error
+}
+
+// hookCases pairs every error hook with each method it fails.
+var hookCases = []hookCase{
+	{"CreateUserErr fails CreateUser", func(s *testkit.Store) { s.CreateUserErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.CreateUser(ctx, hookUser) }},
+	{"LookupErr fails UserByEmail", func(s *testkit.Store) { s.LookupErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByEmail(ctx, hookUser.Email)) }},
+	{"LookupErr fails UserByID", func(s *testkit.Store) { s.LookupErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByID(ctx, hookID)) }},
+	{"LookupErr fails UsersByIDs", func(s *testkit.Store) { s.LookupErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.UsersByIDs(ctx, []uuid.UUID{hookID}))
+		}},
+	{"CreateSessionErr fails CreateSession", func(s *testkit.Store) { s.CreateSessionErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.CreateSession(ctx, gouncer.Session{}) }},
+	{"SessionErr fails UserBySession", func(s *testkit.Store) { s.SessionErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.UserBySession(ctx, hookToken.TokenHash, time.Now()))
+		}},
+	{"DeleteErr fails DeleteSession", func(s *testkit.Store) { s.DeleteErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.DeleteSession(ctx, hookToken.TokenHash) }},
+	{"ListUsersErr fails ListUsers", func(s *testkit.Store) { s.ListUsersErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return errOf(s.ListUsers(ctx)) }},
+	{"SetDisabledErr fails SetUserDisabled", func(s *testkit.Store) { s.SetDisabledErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.SetUserDisabled(ctx, hookID, true) }},
+	{"SetDisabledErr fails SetUserDisabledUnderCover", func(s *testkit.Store) { s.SetDisabledErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return s.SetUserDisabledUnderCover(ctx, hookID, true, nil)
+		}},
+	{"SetDisabledErr fails the guarded disable of the last admin", func(s *testkit.Store) {
+		s.SetDisabledErr = errHook
+		s.Users[hookID] = gouncer.User{ID: hookID, Email: hookUser.Email, Role: "admin"}
+	}, func(ctx context.Context, s *testkit.Store) error {
+		return s.SetUserDisabledUnderCover(ctx, hookID, true, gouncer.Roles{"admin"})
+	}},
+	{"SetRoleErr fails SetUserRole", func(s *testkit.Store) { s.SetRoleErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.SetUserRole(ctx, hookID, "editor", nil) }},
+	{"SetRoleErr fails SetUserRoleFrom", func(s *testkit.Store) { s.SetRoleErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return s.SetUserRoleFrom(ctx, hookID, "member", "editor", nil)
+		}},
+	{"SetDisabledErr fails SetUserDisabledFrom", func(s *testkit.Store) { s.SetDisabledErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return s.SetUserDisabledFrom(ctx, hookID, "member", true, nil)
+		}},
+	{"TokenErr fails CreateToken", func(s *testkit.Store) { s.TokenErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.CreateToken(ctx, hookToken, 1) }},
+	{"TokenErr fails ReplaceToken", func(s *testkit.Store) { s.TokenErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error { return s.ReplaceToken(ctx, hookToken) }},
+	{"TokenErr fails ActivateByToken", func(s *testkit.Store) { s.TokenErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.ActivateByToken(ctx, hookToken.TokenHash, time.Now(), "hash"))
+		}},
+	{"TokenErr fails ResetByToken", func(s *testkit.Store) { s.TokenErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.ResetByToken(ctx, hookToken.TokenHash, time.Now(), "hash"))
+		}},
+	{"TokenErr fails DeleteExpiredTokens", func(s *testkit.Store) { s.TokenErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.DeleteExpiredTokens(ctx, time.Now()))
+		}},
+	{"ActivateErr fails ActivateByToken", func(s *testkit.Store) { s.ActivateErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.ActivateByToken(ctx, hookToken.TokenHash, time.Now(), "hash"))
+		}},
+	{"ResetErr fails ResetByToken", func(s *testkit.Store) { s.ResetErr = errHook },
+		func(ctx context.Context, s *testkit.Store) error {
+			return errOf(s.ResetByToken(ctx, hookToken.TokenHash, time.Now(), "hash"))
+		}},
+}
+
 func TestEveryErrorHookFailsItsMethod(t *testing.T) {
 	t.Parallel()
 
-	id := uuid.Must(uuid.NewV7())
-	user := gouncer.User{ID: id, Email: "alpha@example.com", Name: "alpha account"}
-	token := gouncer.Token{TokenHash: gouncer.HashToken("token"), UserID: id, Purpose: gouncer.PurposeReset}
-	tests := []struct {
-		name string
-		set  func(store *testkit.Store)
-		call func(ctx context.Context, store *testkit.Store) error
-	}{
-		{"CreateUserErr fails CreateUser", func(s *testkit.Store) { s.CreateUserErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.CreateUser(ctx, user) }},
-		{"LookupErr fails UserByEmail", func(s *testkit.Store) { s.LookupErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByEmail(ctx, user.Email)) }},
-		{"LookupErr fails UserByID", func(s *testkit.Store) { s.LookupErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return errOf(s.UserByID(ctx, id)) }},
-		{"CreateSessionErr fails CreateSession", func(s *testkit.Store) { s.CreateSessionErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.CreateSession(ctx, gouncer.Session{}) }},
-		{"SessionErr fails UserBySession", func(s *testkit.Store) { s.SessionErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.UserBySession(ctx, token.TokenHash, time.Now()))
-			}},
-		{"DeleteErr fails DeleteSession", func(s *testkit.Store) { s.DeleteErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.DeleteSession(ctx, token.TokenHash) }},
-		{"ListUsersErr fails ListUsers", func(s *testkit.Store) { s.ListUsersErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return errOf(s.ListUsers(ctx)) }},
-		{"SetDisabledErr fails SetUserDisabled", func(s *testkit.Store) { s.SetDisabledErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.SetUserDisabled(ctx, id, true) }},
-		{"SetDisabledErr fails SetUserDisabledUnderCover", func(s *testkit.Store) { s.SetDisabledErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return s.SetUserDisabledUnderCover(ctx, id, true, nil)
-			}},
-		{"SetDisabledErr fails the guarded disable of the last admin", func(s *testkit.Store) {
-			s.SetDisabledErr = errHook
-			s.Users[id] = gouncer.User{ID: id, Email: user.Email, Role: "admin"}
-		}, func(ctx context.Context, s *testkit.Store) error {
-			return s.SetUserDisabledUnderCover(ctx, id, true, gouncer.Roles{"admin"})
-		}},
-		{"SetRoleErr fails SetUserRole", func(s *testkit.Store) { s.SetRoleErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.SetUserRole(ctx, id, "editor", nil) }},
-		{"SetRoleErr fails SetUserRoleFrom", func(s *testkit.Store) { s.SetRoleErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return s.SetUserRoleFrom(ctx, id, "member", "editor", nil)
-			}},
-		{"SetDisabledErr fails SetUserDisabledFrom", func(s *testkit.Store) { s.SetDisabledErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return s.SetUserDisabledFrom(ctx, id, "member", true, nil)
-			}},
-		{"TokenErr fails CreateToken", func(s *testkit.Store) { s.TokenErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.CreateToken(ctx, token, 1) }},
-		{"TokenErr fails ReplaceToken", func(s *testkit.Store) { s.TokenErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error { return s.ReplaceToken(ctx, token) }},
-		{"TokenErr fails ActivateByToken", func(s *testkit.Store) { s.TokenErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.ActivateByToken(ctx, token.TokenHash, time.Now(), "hash"))
-			}},
-		{"TokenErr fails ResetByToken", func(s *testkit.Store) { s.TokenErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.ResetByToken(ctx, token.TokenHash, time.Now(), "hash"))
-			}},
-		{"TokenErr fails DeleteExpiredTokens", func(s *testkit.Store) { s.TokenErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.DeleteExpiredTokens(ctx, time.Now()))
-			}},
-		{"ActivateErr fails ActivateByToken", func(s *testkit.Store) { s.ActivateErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.ActivateByToken(ctx, token.TokenHash, time.Now(), "hash"))
-			}},
-		{"ResetErr fails ResetByToken", func(s *testkit.Store) { s.ResetErr = errHook },
-			func(ctx context.Context, s *testkit.Store) error {
-				return errOf(s.ResetByToken(ctx, token.TokenHash, time.Now(), "hash"))
-			}},
-	}
-	for _, tt := range tests {
+	for _, tt := range hookCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

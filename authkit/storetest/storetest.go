@@ -54,6 +54,8 @@ type Store interface {
 	authkit.TokenReaper
 	// UserByID returns the account with id, disabled or not, or gouncer.ErrUserNotFound.
 	UserByID(ctx context.Context, id uuid.UUID) (gouncer.User, error)
+	// UsersByIDs returns each account an id names once, in any state and order, without its hash, skipping unknown ids.
+	UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]gouncer.User, error)
 	// SetUserDisabled updates whether the account may log in and ends its sessions on disable.
 	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error
 	// GrantRoleToRoleless gives role to every account holding none and returns how many it changed.
@@ -95,6 +97,12 @@ var checks = []check{
 	{"a taken email answers ErrEmailTaken", takenEmail},
 	{"an account reads back by id, disabled or not", readsBackByID},
 	{"an unknown id answers ErrUserNotFound", unknownID},
+	{"UsersByIDs reads back the accounts asked and no other", usersByIDs},
+	{"UsersByIDs skips an id no account holds, without an error", unknownIDsSkipped},
+	{"UsersByIDs reads back an id asked twice once", repeatedIDsOnce},
+	{"UsersByIDs reads back disabled and unconfirmed accounts", closedByIDs},
+	{"UsersByIDs reads back no password hash", hashlessByIDs},
+	{"UsersByIDs reads no account for no ids, nil or empty", noIDs},
 	{"a live session reads back its account", liveSession},
 	{"an unknown, expired or disabled session answers ErrSessionNotFound", unusableSessions},
 	{"a deleted session is gone and deleting it again succeeds", deletedSession},
@@ -204,6 +212,51 @@ func readsBackByID(t testing.TB, fixture Fixture) {
 func unknownID(t testing.TB, fixture Fixture) {
 	_, err := fixture.Store.UserByID(t.Context(), firstTwin)
 	expect(t, errors.Is(err, gouncer.ErrUserNotFound), "UserByID() error = %v, want ErrUserNotFound", err)
+}
+
+// usersByIDs fails t unless UsersByIDs reads back the accounts asked and leaves out the others.
+func usersByIDs(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, account("alpha@example.com", "alpha account"))
+	created(t, fixture, account("bravo@example.com", "Bravo account"))
+	charlie := created(t, fixture, account("charlie@example.com", "charlie account"))
+	expectByIDs(t, fixture, []uuid.UUID{charlie.ID, alpha.ID}, alpha, charlie)
+}
+
+// unknownIDsSkipped fails t unless UsersByIDs skips an id no account holds and answers no error.
+func unknownIDsSkipped(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, account("alpha@example.com", "alpha account"))
+	expectByIDs(t, fixture, []uuid.UUID{firstTwin, alpha.ID}, alpha)
+}
+
+// repeatedIDsOnce fails t unless UsersByIDs reads back an id asked twice once.
+func repeatedIDsOnce(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, account("alpha@example.com", "alpha account"))
+	expectByIDs(t, fixture, []uuid.UUID{alpha.ID, alpha.ID}, alpha)
+}
+
+// closedByIDs fails t unless UsersByIDs reads back disabled and unconfirmed accounts with their flags.
+func closedByIDs(t testing.TB, fixture Fixture) {
+	disabled := created(t, fixture, closed(account("bravo@example.com", "Bravo account")))
+	unconfirmed := created(t, fixture, invited("charlie@example.com", "charlie account"))
+	both := created(t, fixture, closed(invited("delta@example.com", "delta account")))
+	expectByIDs(t, fixture, []uuid.UUID{disabled.ID, unconfirmed.ID, both.ID}, disabled, unconfirmed, both)
+}
+
+// hashlessByIDs fails t unless UsersByIDs reads back an account holding a password hash without it.
+func hashlessByIDs(t testing.TB, fixture Fixture) {
+	alpha := created(t, fixture, account("alpha@example.com", "alpha account"))
+	read := readByIDs(t, fixture, []uuid.UUID{alpha.ID})
+	expect(t, len(read) == 1, "UsersByIDs() = %s, want the one account asked", describedAll(read))
+	for _, user := range read {
+		expect(t, user.PasswordHash == "", "UsersByIDs() carried the password hash %q, want none", user.PasswordHash)
+	}
+}
+
+// noIDs fails t unless UsersByIDs reads no account for a nil or an empty list of ids.
+func noIDs(t testing.TB, fixture Fixture) {
+	created(t, fixture, account("alpha@example.com", "alpha account"))
+	expectByIDs(t, fixture, nil)
+	expectByIDs(t, fixture, []uuid.UUID{})
 }
 
 // liveSession fails t unless a live session reads back the account it belongs to.
@@ -344,8 +397,9 @@ func roleOnEveryRead(t testing.TB, fixture Fixture) {
 	listed, err := fixture.Store.ListUsers(t.Context())
 	must(t, err, "ListUsers")
 	roles := append([]string{bySession.Role, byEmail.Role, byID(t, fixture, user.ID).Role}, rolesOf(listed)...)
-	expect(t, slices.Equal(roles, []string{"admin", "admin", "admin", "admin"}), "the reads by session, email, id "+
-		"and list carried the roles %q, want admin in each", roles)
+	roles = append(roles, rolesOf(readByIDs(t, fixture, []uuid.UUID{user.ID}))...)
+	expect(t, slices.Equal(roles, []string{"admin", "admin", "admin", "admin", "admin"}), "the reads by session, "+
+		"email, id, list and ids carried the roles %q, want admin in each", roles)
 }
 
 // roleWritten fails t unless SetUserRole writes a covered account's role and refuses an unknown account.
@@ -1053,6 +1107,33 @@ func byEmail(t testing.TB, fixture Fixture, email string) gouncer.User {
 	user, err := fixture.Store.UserByEmail(t.Context(), email)
 	must(t, err, "UserByEmail "+email)
 	return user
+}
+
+// readByIDs returns the accounts UsersByIDs reads under ids, ordered by id, ending the check when the store fails.
+func readByIDs(t testing.TB, fixture Fixture, ids []uuid.UUID) []gouncer.User {
+	t.Helper()
+	users, err := fixture.Store.UsersByIDs(t.Context(), ids)
+	must(t, err, "UsersByIDs")
+	slices.SortFunc(users, idOrder)
+	return users
+}
+
+// expectByIDs fails t unless UsersByIDs reads back exactly want under ids, in any order and without password hashes.
+func expectByIDs(t testing.TB, fixture Fixture, ids []uuid.UUID, want ...gouncer.User) {
+	t.Helper()
+	read := readByIDs(t, fixture, ids)
+	want = slices.Clone(want)
+	for i := range want {
+		want[i].PasswordHash = ""
+	}
+	slices.SortFunc(want, idOrder)
+	expect(t, slices.EqualFunc(read, want, sameUser), "UsersByIDs(%v) = %s, want %s", ids, describedAll(read),
+		describedAll(want))
+}
+
+// idOrder orders two accounts by id.
+func idOrder(a, b gouncer.User) int {
+	return strings.Compare(a.ID.String(), b.ID.String())
 }
 
 // rolesOf returns the role of each account.
