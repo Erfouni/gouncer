@@ -12,13 +12,20 @@ handlers and database. Gouncer owns none of your HTTP layer.
 ## API
 
 - `NewUser` validates registration input and hashes the password with argon2id.
+- `NewInvitedUser` builds an unconfirmed account with no usable
+  password until it is activated.
 - `VerifyPassword` checks a password against a stored hash. It never
   panics and a malformed hash never matches.
 - `NewSession` issues a login session with a random token. The client
   sees the token once and only its digest is stored.
-- `HashToken` digests a token for storage and lookup.
+- `NewToken` issues a single-use token that invites, resets or
+  confirms an account. Only its digest is stored too.
+- `HashToken` digests a session or single-use token for storage and lookup.
+- `Roles` is a set of roles, and `Holds` reports whether a role is one of them.
 - `Store` is the persistence contract. Bring your own database and
   return the package sentinel errors.
+- [`avatar`](avatar/) builds an account's avatar address, a drawn
+  initial or a Gravatar image, with the standard library alone.
 
 ## Design
 
