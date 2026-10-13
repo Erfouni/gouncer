@@ -196,33 +196,28 @@ func TestUserStoreReportsBackendFailures(t *testing.T) {
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := store.CreateUser(canceled, ada); err == nil {
-		t.Error("CreateUser() error = nil, want a backend failure")
+	calls := map[string]error{
+		"CreateUser":            store.CreateUser(canceled, ada),
+		"UserByEmail":           errOf(store.UserByEmail(canceled, "ada@example.com")),
+		"UserByID":              errOf(store.UserByID(canceled, ada.ID)),
+		"CreateSession":         store.CreateSession(canceled, mustSession(t, ada)),
+		"UserBySession":         errOf(store.UserBySession(canceled, gouncer.HashToken("t"), time.Now().UTC())),
+		"DeleteSession":         store.DeleteSession(canceled, gouncer.HashToken("t")),
+		"ListUsers":             errOf(store.ListUsers(canceled)),
+		"UsersByIDs":            errOf(store.UsersByIDs(canceled, []uuid.UUID{ada.ID})),
+		"SetUserDisabled":       store.SetUserDisabled(canceled, ada.ID, true),
+		"DeleteExpiredSessions": errOf(store.DeleteExpiredSessions(canceled, time.Now().UTC())),
 	}
-	if _, err := store.UserByEmail(canceled, "ada@example.com"); err == nil {
-		t.Error("UserByEmail() error = nil, want a backend failure")
+	for method, err := range calls {
+		if err == nil {
+			t.Errorf("%s() error = nil, want a backend failure", method)
+		}
 	}
-	if _, err := store.UserByID(canceled, ada.ID); err == nil {
-		t.Error("UserByID() error = nil, want a backend failure")
-	}
-	if err := store.CreateSession(canceled, mustSession(t, ada)); err == nil {
-		t.Error("CreateSession() error = nil, want a backend failure")
-	}
-	if _, err := store.UserBySession(canceled, gouncer.HashToken("t"), time.Now().UTC()); err == nil {
-		t.Error("UserBySession() error = nil, want a backend failure")
-	}
-	if err := store.DeleteSession(canceled, gouncer.HashToken("t")); err == nil {
-		t.Error("DeleteSession() error = nil, want a backend failure")
-	}
-	if _, err := store.ListUsers(canceled); err == nil {
-		t.Error("ListUsers() error = nil, want a backend failure")
-	}
-	if err := store.SetUserDisabled(canceled, ada.ID, true); err == nil {
-		t.Error("SetUserDisabled() error = nil, want a backend failure")
-	}
-	if _, err := store.DeleteExpiredSessions(canceled, time.Now().UTC()); err == nil {
-		t.Error("DeleteExpiredSessions() error = nil, want a backend failure")
-	}
+}
+
+// errOf returns the error of a call, dropping its value.
+func errOf[T any](_ T, err error) error {
+	return err
 }
 
 func TestUserStoreDeleteExpiredSessions(t *testing.T) {

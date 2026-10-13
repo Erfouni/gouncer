@@ -136,19 +136,37 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list users: %w", err)
 	}
+	return listedUsers(rows), nil
+}
+
+// UsersByIDs returns each user an id names once, disabled or unconfirmed too, without password hashes, in no set order.
+func (s *UserStore) UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]gouncer.User, error) {
+	if len(ids) == 0 {
+		return []gouncer.User{}, nil
+	}
+	rows, err := s.queries.ListUsersByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list users by ids: %w", err)
+	}
+	return listedUsers(rows), nil
+}
+
+// listedUsers converts generated listing rows into domain users, which carry no password hash.
+func listedUsers[R db.ListUsersRow | db.ListUsersByIDsRow](rows []R) []gouncer.User {
 	users := make([]gouncer.User, len(rows))
 	for i, row := range rows {
+		listed := db.ListUsersRow(row)
 		users[i] = gouncer.User{
-			ID:        row.ID,
-			Email:     row.Email,
-			Name:      row.Name,
-			Disabled:  row.Disabled,
-			Confirmed: row.Confirmed,
-			Role:      row.Role,
-			CreatedAt: row.CreatedAt,
+			ID:        listed.ID,
+			Email:     listed.Email,
+			Name:      listed.Name,
+			Disabled:  listed.Disabled,
+			Confirmed: listed.Confirmed,
+			Role:      listed.Role,
+			CreatedAt: listed.CreatedAt,
 		}
 	}
-	return users, nil
+	return users
 }
 
 // SetUserDisabled updates whether the user may log in, revoking every

@@ -171,6 +171,18 @@ func TestUserStoreGuardedWriteReportsCommitFailure(t *testing.T) {
 	wantError(t, mock, "SetUserRoleFrom", err, errBackend)
 }
 
+func TestUserStoreUsersByIDsReportsQueryFailure(t *testing.T) {
+	t.Parallel()
+
+	mock := mockPool(t)
+	ids := []uuid.UUID{uuid.Must(uuid.NewV7())}
+	mock.ExpectQuery(`id = ANY\(`).WithArgs(ids).WillReturnError(errBackend)
+
+	_, err := newUserStore(mock).UsersByIDs(t.Context(), ids)
+
+	wantError(t, mock, "UsersByIDs", err, errBackend)
+}
+
 // wantError fails t unless err wraps want and every expectation ran.
 func wantError(t *testing.T, mock pgxmock.PgxPoolIface, method string, err, want error) {
 	t.Helper()
