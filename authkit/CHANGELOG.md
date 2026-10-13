@@ -7,6 +7,13 @@ minor releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- `storetest` checks that a conditional write from a role the last
+  enabled admin left answers `ErrRoleChanged` and changes nothing.
+
 ## [0.20.0] - 2026-10-13
 
 ### Changed
