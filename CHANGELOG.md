@@ -10,10 +10,14 @@ at v0.x, minor releases may contain breaking changes.
 ### Added
 
 - `ErrNilUserID`, returned by `NewToken` and `NewSession` for the nil UUID.
+- The `avatar` package, building an account's avatar address with the
+  standard library alone: a round SVG with the first letter of the
+  name, or a Gravatar address as WordPress builds it.
 
 ### Changed
 
 - The module needs Go 1.27.2.
+- Requires `golang.org/x/crypto` v0.58.0.
 
 ## [0.4.0] - 2026-08-29
 
