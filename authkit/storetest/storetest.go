@@ -117,6 +117,7 @@ var checks = []check{
 	{"SetUserRole writes the role, and an unknown account answers ErrUserNotFound", roleWritten},
 	{"SetUserRoleFrom writes only while the account holds the role checked", roleWrittenFrom},
 	{"SetUserDisabledFrom writes only while the account holds the role checked", disabledFrom},
+	{"a conditional write from a role the last enabled admin left answers ErrRoleChanged", movedBeforeLast},
 	{"role changes racing from one checked role land once", racedRoleChanges},
 	{"the guard refuses to demote the last enabled privileged account and keeps its role", lastDemotion},
 	{"the guard refuses to disable the last enabled privileged account and keeps it enabled", lastDisable},
@@ -452,6 +453,20 @@ func disabledFrom(t testing.TB, fixture Fixture) {
 		"want ErrLastPrivileged", last)
 	expect(t, byID(t, fixture, alpha.ID).Disabled && !byID(t, fixture, lone.ID).Disabled, "the conditional writes "+
 		"left the flags wrong, want the editor disabled and the admin enabled")
+}
+
+// movedBeforeLast fails t unless a conditional write from a role the last enabled admin left answers ErrRoleChanged.
+func movedBeforeLast(t testing.TB, fixture Fixture) {
+	lone := created(t, fixture, holding(account("alpha@example.com", "alpha account"), "admin"))
+	demoted := fixture.Store.SetUserRoleFrom(t.Context(), lone.ID, "editor", "member", admins)
+	disabled := fixture.Store.SetUserDisabledFrom(t.Context(), lone.ID, "editor", true, admins)
+	expect(t, errors.Is(demoted, authkit.ErrRoleChanged), "SetUserRoleFrom() of the last admin checked as an "+
+		"editor error = %v, want ErrRoleChanged", demoted)
+	expect(t, errors.Is(disabled, authkit.ErrRoleChanged), "SetUserDisabledFrom() of the last admin checked as an "+
+		"editor error = %v, want ErrRoleChanged", disabled)
+	got := byID(t, fixture, lone.ID)
+	expect(t, got.Role == "admin", "the refused writes left the role %q, want admin", got.Role)
+	expect(t, !got.Disabled, "the refused writes left the last admin disabled, want it enabled")
 }
 
 // racedRoleChanges fails t unless role changes racing from one checked role land exactly once.
