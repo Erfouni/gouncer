@@ -12,8 +12,8 @@ github.com/gopherium/framework/dbkit/sqlite v0.1.0 h1:NmfcEuhlV5/SpqqZHHeN1qtA6F
 github.com/gopherium/framework/dbkit/sqlite v0.1.0/go.mod h1:43gIZC9JkU/PeAvKLVjEubbe6TOz+1rjIANf615QEOI=
 github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
 github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
-github.com/gopherium/gouncer/authkit v0.19.0 h1:4TPPakAHNmqG0H+7c62YomNgDfd7uRbuccIXvbdutKc=
-github.com/gopherium/gouncer/authkit v0.19.0/go.mod h1:oJP/pk0xnXA4HhOlFoqm4lh9ulScCUbgGeLFrquZ6g8=
+github.com/gopherium/gouncer/authkit v0.20.0 h1:U54/t/mWtxfXYCJNVzEFZNq4huKcca9UpoKmKonn8LQ=
+github.com/gopherium/gouncer/authkit v0.20.0/go.mod h1:oJP/pk0xnXA4HhOlFoqm4lh9ulScCUbgGeLFrquZ6g8=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
