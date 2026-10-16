@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Link } from '@wordpress/ui'
 import { http } from 'msw'
 import { expect, test, vi } from 'vitest'
 
@@ -120,27 +121,64 @@ test('hints browsers to offer the saved login', async () => {
 	)
 })
 
-test('offers the forgotten password way only when one is provided', async () => {
+function renderLoginOffering(onForgotPassword: () => void) {
 	const client = new QueryClient({
 		defaultOptions: { mutations: { retry: false } },
 	})
-	const onForgotPassword = vi.fn()
 	render(
 		<QueryClientProvider client={client}>
 			<LoginScreen brand="Testbed" onLogin={vi.fn()} onForgotPassword={onForgotPassword} />
 		</QueryClientProvider>,
 	)
+}
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Forgot your password?' }))
+test('offers the lost password way only when one is provided', async () => {
+	const onForgotPassword = vi.fn()
+	renderLoginOffering(onForgotPassword)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Lost your password?' }))
 
 	await waitFor(() => expect(onForgotPassword).toHaveBeenCalled())
 })
 
-test('renders no forgotten password way when none is provided', async () => {
+test('puts the lost password way under the login card, as WordPress does', async () => {
+	renderLoginOffering(vi.fn())
+
+	const lost = await screen.findByRole('button', { name: 'Lost your password?' })
+	const nav = lost.closest('.gopherium-login__nav')
+
+	expect(lost.closest('.gopherium-login__card')).toBeNull()
+	expect(nav?.previousElementSibling).toHaveClass('gopherium-login__card')
+	expect(nav?.parentElement).toHaveClass('gopherium-login__column')
+})
+
+function neutralLinkClasses() {
+	const { container, unmount } = render(
+		<Link tone="neutral" href="/">
+			link
+		</Link>,
+	)
+	const tokens = [...(container.querySelector('a') as Element).classList]
+	unmount()
+	return tokens
+}
+
+test('draws the lost password way as a link, as WordPress does', async () => {
+	const tokens = neutralLinkClasses()
+	expect(tokens.length).toBeGreaterThan(0)
+	renderLoginOffering(vi.fn())
+
+	const lost = await screen.findByRole('button', { name: 'Lost your password?' })
+
+	expect([...lost.classList]).toEqual(expect.arrayContaining(tokens))
+})
+
+test('renders no lost password way when none is provided', async () => {
 	renderLogin()
 
 	expect(await screen.findByLabelText('Email')).toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: 'Forgot your password?' }),
+		screen.queryByRole('button', { name: 'Lost your password?' }),
 	).not.toBeInTheDocument()
+	expect(document.querySelector('.gopherium-login__nav')).toBeNull()
 })

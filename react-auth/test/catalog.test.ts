@@ -11,6 +11,12 @@ test('answers the catalogue a locale ships with', async () => {
 	expect(held?.['Log out']).toEqual(['Cerrar sesión'])
 })
 
+test('carries the Spanish WordPress uses for a lost password', async () => {
+	const held = await catalogFor('es-ES')
+
+	expect(held?.['Lost your password?']).toEqual(['¿Has olvidado tu contraseña?'])
+})
+
 test('answers nothing for the language the sources are written in', async () => {
 	expect(await catalogFor('en-US')).toBeUndefined()
 })

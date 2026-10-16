@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query'
 import { __, _x } from '@wordpress/i18n'
-import { Button, Card, InputControl, Stack, Text } from '@wordpress/ui'
+import { Button, Card, InputControl, Link, Stack, Text } from '@wordpress/ui'
 import { useState } from 'react'
 
 import { InvalidCredentialsError, RateLimitedError, login } from '../api.js'
@@ -48,53 +48,61 @@ export function LoginScreen({
 
 	return (
 		<div className="gopherium-login">
-			<Card.Root className="gopherium-login__card">
-				<Card.Content>
-					<form
-						onSubmit={(event) => {
-							event.preventDefault()
-							attempt.mutate()
-						}}
-					>
-						<Stack direction="column" gap="lg">
-							<Text variant="heading-lg" render={<h1 />}>
-								{brand}
-							</Text>
-							<InputControl
-								label={_x('Email', 'field label', DOMAIN)}
-								type="email"
-								autoComplete="username"
-								value={email}
-								onChange={(event) => setEmail(event.target.value)}
-							/>
-							<InputControl
-								label={__('Password', DOMAIN)}
-								type="password"
-								autoComplete="current-password"
-								value={password}
-								onChange={(event) => setPassword(event.target.value)}
-							/>
-							<Button
-								type="submit"
-								disabled={
-									email.trim() === '' || password === '' || attempt.isPending
-								}
-								loading={attempt.isPending}
-							>
-								{__('Log in', DOMAIN)}
-							</Button>
-							{attempt.isError ? (
-								<Text role="alert">{loginErrorMessage(attempt.error)}</Text>
-							) : null}
-							{onForgotPassword ? (
-								<Button type="button" variant="outline" onClick={onForgotPassword}>
-									{__('Forgot your password?', DOMAIN)}
+			<div className="gopherium-login__column">
+				<Card.Root className="gopherium-login__card">
+					<Card.Content>
+						<form
+							onSubmit={(event) => {
+								event.preventDefault()
+								attempt.mutate()
+							}}
+						>
+							<Stack direction="column" gap="lg">
+								<Text variant="heading-lg" render={<h1 />}>
+									{brand}
+								</Text>
+								<InputControl
+									label={_x('Email', 'field label', DOMAIN)}
+									type="email"
+									autoComplete="username"
+									value={email}
+									onChange={(event) => setEmail(event.target.value)}
+								/>
+								<InputControl
+									label={__('Password', DOMAIN)}
+									type="password"
+									autoComplete="current-password"
+									value={password}
+									onChange={(event) => setPassword(event.target.value)}
+								/>
+								<Button
+									type="submit"
+									disabled={
+										email.trim() === '' || password === '' || attempt.isPending
+									}
+									loading={attempt.isPending}
+								>
+									{__('Log in', DOMAIN)}
 								</Button>
-							) : null}
-						</Stack>
-					</form>
-				</Card.Content>
-			</Card.Root>
+								{attempt.isError ? (
+									<Text role="alert">{loginErrorMessage(attempt.error)}</Text>
+								) : null}
+							</Stack>
+						</form>
+					</Card.Content>
+				</Card.Root>
+				{onForgotPassword ? (
+					<p className="gopherium-login__nav">
+						<Link
+							tone="neutral"
+							render={<button type="button" />}
+							onClick={onForgotPassword}
+						>
+							{__('Lost your password?', DOMAIN)}
+						</Link>
+					</p>
+				) : null}
+			</div>
 		</div>
 	)
 }

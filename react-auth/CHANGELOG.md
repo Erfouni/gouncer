@@ -10,6 +10,12 @@ Releases are tagged `react-auth@X.Y.Z` and publish to npm from CI. The
 npm-style tag stays invisible to the Go toolchain, unlike a
 `react-auth/vX.Y.Z` tag naming the directory's stub module.
 
+## [Unreleased]
+
+### Changed
+
+- `LoginScreen` says "Lost your password?" under the card, as WordPress does.
+
 ## [0.12.0] - 2026-10-11
 
 ### Changed
