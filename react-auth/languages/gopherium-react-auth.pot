@@ -34,9 +34,6 @@ msgstr ""
 msgid "Enable %s"
 msgstr ""
 
-msgid "Forgot your password?"
-msgstr ""
-
 msgid "Go to login"
 msgstr ""
 
@@ -62,6 +59,9 @@ msgid "Login failed, please try again."
 msgstr ""
 
 msgid "Logout failed, please try again."
+msgstr ""
+
+msgid "Lost your password?"
 msgstr ""
 
 msgid "No mail server is configured. Deliver the activation link by hand."

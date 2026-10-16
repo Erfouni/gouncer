@@ -9,9 +9,40 @@
 	box-sizing: border-box;
 }
 
+.gopherium-login__column {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 360px;
+}
+
 .gopherium-login__card {
 	width: 100%;
 	max-width: 360px;
+}
+
+.gopherium-login__nav {
+	margin: 24px 0 0;
+	padding: 0 24px;
+	font-size: var(--wpds-typography-font-size-md);
+	line-height: var(--wpds-typography-line-height-sm);
+	text-align: start;
+}
+
+.gopherium-login__nav button {
+	padding: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+	line-height: normal;
+	text-align: inherit;
+	text-decoration-line: underline;
+	cursor: pointer;
+}
+
+.gopherium-login__nav button:hover,
+.gopherium-login__nav button:focus-visible {
+	text-decoration-color: currentColor;
 }
 
 .gopherium-users {
