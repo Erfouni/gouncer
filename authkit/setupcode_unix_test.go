@@ -84,6 +84,7 @@ func TestPrepareStopsWhenTheUmaskHidesTheCodeFromItsOwner(t *testing.T) {
 	if asUmaskChild(t) {
 		return
 	}
+	needsFileModes(t)
 	t.Parallel()
 
 	path := codePath(t)

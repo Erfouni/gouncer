@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -91,6 +92,8 @@ type Setup struct {
 	cfg SetupConfig
 	// closed reports whether this process saw the store hold an account.
 	closed atomic.Bool
+	// renewing serializes the renewals of a stale code.
+	renewing sync.Mutex
 	// now reads the clock.
 	now func() time.Time
 	// lstat reads a path without following a symbolic link.

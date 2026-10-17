@@ -74,6 +74,11 @@ func wantReadFailure(t *testing.T, err error, path string) {
 	}
 }
 
+// openWriteOnly opens the file at name for writing only, so a read of it fails.
+func openWriteOnly(name string) (*os.File, error) {
+	return os.OpenFile(name, os.O_WRONLY, 0)
+}
+
 // TestPlaceCodeKeepsACodeAnotherCopyWrote checks that a code already at the final name wins over the fresh one.
 func TestPlaceCodeKeepsACodeAnotherCopyWrote(t *testing.T) {
 	t.Parallel()
@@ -261,9 +266,7 @@ func TestPlaceCodeReportsACodeItCannotReadBack(t *testing.T) {
 	t.Parallel()
 
 	s := internalSetup(t)
-	s.openFile = func(name string) (*os.File, error) {
-		return os.OpenFile(name, os.O_WRONLY, 0)
-	}
+	s.openFile = openWriteOnly
 
 	_, err := s.placeCode()
 
@@ -279,9 +282,7 @@ func TestPlaceCodeLeavesACodeAnotherCopyWroteThatItCannotRead(t *testing.T) {
 
 	s := internalSetup(t)
 	other := writeCode(t, s.cfg.CodeFile)
-	s.openFile = func(name string) (*os.File, error) {
-		return os.OpenFile(name, os.O_WRONLY, 0)
-	}
+	s.openFile = openWriteOnly
 
 	_, err := s.placeCode()
 
@@ -319,9 +320,7 @@ func TestReadCodeReportsAFileItCannotRead(t *testing.T) {
 
 	s := internalSetup(t)
 	code := writeCode(t, s.cfg.CodeFile)
-	s.openFile = func(name string) (*os.File, error) {
-		return os.OpenFile(name, os.O_WRONLY, 0)
-	}
+	s.openFile = openWriteOnly
 
 	_, err := s.ensureCode(t.Context())
 

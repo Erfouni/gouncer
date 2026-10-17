@@ -146,6 +146,14 @@ func expire(t *testing.T, path string) {
 	}
 }
 
+// needsFileModes skips t when the test runs as root.
+func needsFileModes(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+}
+
 // lockFolder makes the folder holding path readable but not writable until the test ends.
 func lockFolder(t *testing.T, path string) {
 	t.Helper()
@@ -681,6 +689,7 @@ func TestPrepareReportsAStoreItCannotRead(t *testing.T) {
 
 // TestPrepareStopsAtACodeFileItCannotOpen checks a code file whose mode keeps its owner from reading it.
 func TestPrepareStopsAtACodeFileItCannotOpen(t *testing.T) {
+	needsFileModes(t)
 	t.Parallel()
 
 	path := codePath(t)
@@ -699,6 +708,7 @@ func TestPrepareStopsAtACodeFileItCannotOpen(t *testing.T) {
 
 // TestPrepareWarnsWhenItCannotRemoveTheCode checks a set-up site whose code file the owner cannot read.
 func TestPrepareWarnsWhenItCannotRemoveTheCode(t *testing.T) {
+	needsFileModes(t)
 	t.Parallel()
 
 	path := codePath(t)
@@ -800,6 +810,7 @@ func TestCheckTellsAnExpiredCodeFromAWrongOne(t *testing.T) {
 
 // TestCheckFailsWhenItCannotRenewTheCode checks an expired code in a folder the process cannot write.
 func TestCheckFailsWhenItCannotRenewTheCode(t *testing.T) {
+	needsFileModes(t)
 	t.Parallel()
 
 	setup, path, old := prepared(t)
@@ -808,7 +819,7 @@ func TestCheckFailsWhenItCannotRenewTheCode(t *testing.T) {
 
 	err := setup.Check(t.Context(), nil, old)
 
-	wantFailure(t, err, "remove the setup code at "+path)
+	wantFailure(t, err, "write the setup code at "+path)
 	if held := fileCode(t, path); held != old {
 		t.Errorf("the code file holds %q, want the expired %q left in place", held, old)
 	}
@@ -1137,6 +1148,7 @@ func TestCreateFirstAccountRefusesANilStore(t *testing.T) {
 
 // TestCreateFirstAccountKeepsTheAccountWhenTheCodeFileCannotGo checks a code file the process cannot remove.
 func TestCreateFirstAccountKeepsTheAccountWhenTheCodeFileCannotGo(t *testing.T) {
+	needsFileModes(t)
 	t.Parallel()
 
 	path := codePath(t)
