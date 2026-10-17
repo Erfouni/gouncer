@@ -15,7 +15,7 @@ Releases of this module are tagged `authkit/vX.Y.Z`.
 - The code works for `CodeLifetime`, or `DefaultSetupCodeLifetime` (one hour) when zero, and a negative lifetime is refused.
 - `Setup.Prepare` keeps or writes the code while the store holds no account, and removes it once one exists.
 - `Setup.Check` checks a code against the file and the store, and writes a fresh code when the old one expired.
-- A renewal takes a lock file kept beside the code file, its path plus `.lock`, so two copies write one fresh code.
+- On systems with `flock`, a renewal takes a lock file kept beside the code file, its path plus `.lock`, so two copies write one fresh code. Elsewhere only renewals in one process take turns.
 - `Setup.CreateFirstAccount` creates the first account from a `FirstAccount` under the application's role and spends the code.
 - `Setup.Status`, `Setup.CheckCode` and `Setup.Create` serve these over HTTP, with no session after the account.
 - `SetupStore`, with `HasUsers` and `CreateFirstUser`.
