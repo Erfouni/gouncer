@@ -66,10 +66,20 @@ func (s *Setup) expired(expiresAt time.Time) bool {
 	return !s.now().Before(expiresAt)
 }
 
-// renewCode replaces the stale code with a fresh one, answering instead a live private code another renewal left.
+// renewCode renews the stale code while it holds the renewal mutex and the lock file beside the code file.
 func (s *Setup) renewCode(ctx context.Context, stale heldCode) (heldCode, error) {
 	s.renewing.Lock()
 	defer s.renewing.Unlock()
+	unlock, err := s.lockRenewal()
+	if err != nil {
+		return heldCode{}, err
+	}
+	defer unlock()
+	return s.renewLocked(ctx, stale)
+}
+
+// renewLocked replaces the stale code with a fresh one, answering instead a live private code another renewal left.
+func (s *Setup) renewLocked(ctx context.Context, stale heldCode) (heldCode, error) {
 	current, err := s.readCode()
 	if errors.Is(err, fs.ErrNotExist) {
 		return s.placeCode()

@@ -808,13 +808,14 @@ func TestCheckTellsAnExpiredCodeFromAWrongOne(t *testing.T) {
 	}
 }
 
-// TestCheckFailsWhenItCannotRenewTheCode checks an expired code in a folder the process cannot write.
+// TestCheckFailsWhenItCannotRenewTheCode checks an expired code and its lock file in a folder it cannot write.
 func TestCheckFailsWhenItCannotRenewTheCode(t *testing.T) {
 	needsFileModes(t)
 	t.Parallel()
 
 	setup, path, old := prepared(t)
 	expire(t, path)
+	plantFile(t, path+".lock", "", 0o600)
 	lockFolder(t, path)
 
 	err := setup.Check(t.Context(), nil, old)

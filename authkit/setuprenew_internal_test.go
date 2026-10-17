@@ -256,12 +256,31 @@ func wantUnmoved(t *testing.T, path string, before fs.FileInfo) {
 	}
 }
 
-// wantOnlyFreshCode fails t unless the folder holds only the code file, a private code other than old, returning it.
+// lockOf returns the path of the lock file beside the code file at path.
+func lockOf(path string) string {
+	return path + ".lock"
+}
+
+// wantFolderHolds fails t unless the folder holding path holds exactly names, in order.
+func wantFolderHolds(t *testing.T, path string, names ...string) {
+	t.Helper()
+	if got := folderNames(t, path); !slices.Equal(got, names) {
+		t.Errorf("the folder holds %q, want %q", got, names)
+	}
+}
+
+// renewedFolder returns names with the lock file beside path added where a renewal keeps one.
+func renewedFolder(path string, names ...string) []string {
+	if lockKept {
+		names = append(names, filepath.Base(lockOf(path)))
+	}
+	return names
+}
+
+// wantOnlyFreshCode fails t unless the folder holds only the code file and any lock, a private code other than old.
 func wantOnlyFreshCode(t *testing.T, path, old string) string {
 	t.Helper()
-	if names := folderNames(t, path); !slices.Equal(names, []string{filepath.Base(path)}) {
-		t.Errorf("the folder holds %q, want only the code file", names)
-	}
+	wantFolderHolds(t, path, renewedFolder(path, filepath.Base(path))...)
 	if mode := lstatOf(t, path).Mode(); mode != 0o600 {
 		t.Errorf("the code file mode = %v, want a regular file at 0600", mode)
 	}
@@ -351,29 +370,6 @@ func TestRenewCodeAnswersTheCodeAnotherSetupRenewed(t *testing.T) {
 	}
 	if written := temps.Load(); written != 0 {
 		t.Errorf("renewCode() wrote %d temporary files, want none", written)
-	}
-}
-
-// TestCheckKeepsTheCodeAnotherSetupRenewedMeanwhile checks a renewal by another Setup that lands while this one writes.
-func TestCheckKeepsTheCodeAnotherSetupRenewedMeanwhile(t *testing.T) {
-	t.Parallel()
-
-	second, old := expiredSetup(t)
-	first := beside(second)
-	firstCodes, secondCodes := logCodes(first), logCodes(second)
-	var firstErr error
-	onTempFile(second, func() { firstErr = first.Check(t.Context(), nil, old) })
-
-	err := second.Check(t.Context(), nil, old)
-
-	if !errors.Is(firstErr, ErrSetupCodeExpired) || !errors.Is(err, ErrSetupCodeExpired) {
-		t.Errorf("the two Check() errors = %v and %v, want ErrSetupCodeExpired twice", firstErr, err)
-	}
-	renewed := wantOnlyFreshCode(t, second.cfg.CodeFile, old)
-	for name, got := range map[string][]string{"first": firstCodes.codes, "second": secondCodes.codes} {
-		if !slices.Equal(got, []string{renewed}) {
-			t.Errorf("OnCode of the %s Setup received %q, want once the code the file holds, %q", name, got, renewed)
-		}
 	}
 }
 
@@ -538,9 +534,7 @@ func TestCheckLeavesWhatTookTheCodesPlaceDuringTheRenewal(t *testing.T) {
 				t.Errorf("Check() error = %v, want ErrSetupCodeFile saying %s", err, tt.words)
 			}
 			wantUnmoved(t, path, put)
-			if names := folderNames(t, path); len(names) != 1 {
-				t.Errorf("the folder holds %q, want only what took the code's place", names)
-			}
+			wantFolderHolds(t, path, renewedFolder(path, filepath.Base(path))...)
 		})
 	}
 }
@@ -594,9 +588,7 @@ func TestCheckRemovesARenewedCodeItCannotReadBack(t *testing.T) {
 	err := s.Check(t.Context(), nil, old)
 
 	wantReadFailure(t, err, s.cfg.CodeFile)
-	if names := folderNames(t, s.cfg.CodeFile); len(names) != 0 {
-		t.Errorf("the folder holds %q, want the unread code file gone", names)
-	}
+	wantFolderHolds(t, s.cfg.CodeFile, renewedFolder(s.cfg.CodeFile)...)
 }
 
 // TestCheckKeepsACodeAnotherCopyPublishedBeforeTheReadBack checks a failed read back after another copy renamed over.
@@ -635,9 +627,7 @@ func TestCheckRefusesARenewedCodeOthersCanStillRead(t *testing.T) {
 	if !errors.Is(err, ErrSetupCodeFile) || !strings.Contains(err.Error(), "cannot keep") {
 		t.Errorf("Check() error = %v, want ErrSetupCodeFile saying the system cannot keep the file private", err)
 	}
-	if names := folderNames(t, s.cfg.CodeFile); len(names) != 0 {
-		t.Errorf("the folder holds %q, want the refused code gone", names)
-	}
+	wantFolderHolds(t, s.cfg.CodeFile, renewedFolder(s.cfg.CodeFile)...)
 }
 
 // TestRenewCodeKeepsAStaleCodeItCannotReadAgain checks a renewal whose second read of the code file fails.
