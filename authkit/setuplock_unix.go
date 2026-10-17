@@ -20,13 +20,14 @@ const lockMode = 0o600
 // flock applies or removes an advisory lock on the open file fd.
 var flock = syscall.Flock
 
-// lockRenewal waits until it holds the lock file beside the code file, refusing a link, and answers what frees it.
+// lockRenewal waits for the private lock file beside the code file, refusing a link, and answers its release.
 func (s *Setup) lockRenewal() (func(), error) {
 	path := s.cfg.CodeFile + lockSuffix
 	lock, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, lockMode)
 	if err != nil {
 		return nil, lockFailure(path, err)
 	}
+	_ = lock.Chmod(lockMode)
 	if err := flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
 		return nil, errors.Join(lockFailure(path, err), lock.Close())
 	}

@@ -29,7 +29,7 @@ func asUmaskChild(t *testing.T) bool {
 	if err != nil {
 		t.Fatalf("parsing the umask %q: %v", mask, err)
 	}
-	syscall.Umask(int(bits))
+	defer syscall.Umask(syscall.Umask(int(bits)))
 	if _, err := newSetup(path).Prepare(t.Context(), nil); err != nil {
 		t.Fatalf("Prepare() under umask %s error = %v", mask, err)
 	}
