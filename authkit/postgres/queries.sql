@@ -24,6 +24,9 @@ SELECT id, email, name, disabled, confirmed, created_at, role
 FROM auth.users
 WHERE id = ANY(CAST(sqlc.arg(ids) AS uuid[]));
 
+-- name: HasUsers :one
+SELECT EXISTS (SELECT 1 FROM auth.users);
+
 -- name: SetUserDisabled :execrows
 UPDATE auth.users
 SET disabled = $2

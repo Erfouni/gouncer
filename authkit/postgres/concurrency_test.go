@@ -9,7 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/postgres"
 )
 
@@ -19,10 +24,10 @@ const racers = 8
 // disablingAccount takes the row lock an in flight disable holds.
 const disablingAccount = `UPDATE auth.users SET disabled = true WHERE id = $1`
 
-// lockWait is how long a blocked issuance must stay blocked to prove it waits.
+// lockWait is how long a call behind a held lock must stay blocked to prove it waits.
 const lockWait = 300 * time.Millisecond
 
-// lockRelease is how long a freed issuance may take to finish.
+// lockRelease is how long a call may take to finish once the lock is freed.
 const lockRelease = 10 * time.Second
 
 // raced runs body on racers goroutines released together, answering every error.
@@ -58,6 +63,61 @@ func settled(t *testing.T, errs []error, want error) int {
 		}
 	}
 	return won
+}
+
+// stillWaiting fails t when call answers on answered within lockWait while hold stands.
+func stillWaiting(t *testing.T, answered <-chan error, call, hold string) {
+	t.Helper()
+	select {
+	case err := <-answered:
+		t.Fatalf("%s answered %v while %s, want it to wait for the lock", call, err, hold)
+	case <-time.After(lockWait):
+	}
+}
+
+// released returns what call answers on answered within lockRelease after release, failing t when it never answers.
+func released(t *testing.T, answered <-chan error, call, release string) error {
+	t.Helper()
+	select {
+	case err := <-answered:
+		return err
+	case <-time.After(lockRelease):
+		t.Fatalf("%s never returned after %s", call, release)
+		return nil
+	}
+}
+
+// heldUnactivated opens a transaction on pool holding the unactivated account id, rolled back when t ends.
+func heldUnactivated(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) pgx.Tx {
+	t.Helper()
+	holder := openTx(t, pool)
+	if _, err := holder.Exec(
+		t.Context(),
+		"SELECT id FROM auth.users WHERE id = $1 AND NOT disabled AND NOT confirmed FOR UPDATE", id,
+	); err != nil {
+		t.Fatalf("holding the account: %v", err)
+	}
+	return holder
+}
+
+// renewedWithin replaces the invite expired with a fresh invite for id inside holder and returns the fresh one.
+func renewedWithin(t *testing.T, holder pgx.Tx, expired gouncer.Token, id uuid.UUID) gouncer.Token {
+	t.Helper()
+	if _, err := holder.Exec(t.Context(), "DELETE FROM auth.tokens WHERE token_hash = $1", expired.TokenHash); err != nil {
+		t.Fatalf("removing the expired token: %v", err)
+	}
+	renewed, err := gouncer.NewToken(id, gouncer.PurposeInvite, time.Hour)
+	if err != nil {
+		t.Fatalf("NewToken() error = %v", err)
+	}
+	if _, err := holder.Exec(
+		t.Context(),
+		"INSERT INTO auth.tokens (token_hash, user_id, purpose, created_at, expires_at) VALUES ($1,$2,$3,$4,$5)",
+		renewed.TokenHash, renewed.UserID, string(renewed.Purpose), renewed.CreatedAt, renewed.ExpiresAt,
+	); err != nil {
+		t.Fatalf("renewing the invite: %v", err)
+	}
+	return renewed
 }
 
 func TestConcurrentRedemptionsSpendTheInviteOnce(t *testing.T) {
@@ -142,21 +202,43 @@ func TestIssuanceWaitsForTheAccountLock(t *testing.T) {
 	issued := make(chan error, 1)
 	go func() { issued <- store.CreateToken(t.Context(), tok, 1) }()
 
-	select {
-	case err := <-issued:
-		t.Fatalf("CreateToken() answered %v while the account was held, want it to wait for the lock", err)
-	case <-time.After(lockWait):
-	}
+	stillWaiting(t, issued, "CreateToken()", "the account was held")
 	if err := holder.Rollback(t.Context()); err != nil {
 		t.Fatalf("Rollback() error = %v, want nil", err)
 	}
-	select {
-	case err := <-issued:
-		if err != nil {
-			t.Errorf("CreateToken() error = %v, want nil once the account was free", err)
-		}
-	case <-time.After(lockRelease):
-		t.Error("CreateToken() never returned after the account was released")
+	if err := released(t, issued, "CreateToken()", "the account was released"); err != nil {
+		t.Errorf("CreateToken() error = %v, want nil once the account was free", err)
+	}
+}
+
+func TestTheFirstAccountWaitsForAnOpenInsert(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewUserStore(pool)
+	holder := openTx(t, pool)
+	other, first := namedUser(t, "maria@example.com", "Maria Perez"), namedUser(t, "maria+2@example.com", "Maria Perez")
+	if err := store.Within(holder).CreateUser(t.Context(), other); err != nil {
+		t.Fatalf("CreateUser() inside the open transaction error = %v, want nil", err)
+	}
+
+	created := make(chan error, 1)
+	go func() { created <- store.CreateFirstUser(t.Context(), first) }()
+
+	stillWaiting(t, created, "CreateFirstUser()", "another account's insert was open")
+	if err := holder.Commit(t.Context()); err != nil {
+		t.Fatalf("Commit() error = %v, want nil", err)
+	}
+	err := released(t, created, "CreateFirstUser()", "the other account landed")
+	if !errors.Is(err, authkit.ErrSetupDone) {
+		t.Errorf("CreateFirstUser() error = %v, want authkit.ErrSetupDone once the other account landed", err)
+	}
+	listed, err := store.ListUsers(t.Context())
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v, want nil", err)
+	}
+	if len(listed) != 1 {
+		t.Errorf("the store holds %d accounts after the other one landed, want 1", len(listed))
 	}
 }
 
@@ -250,17 +332,7 @@ func TestTheSweepSparesAnInviteRenewedBesideIt(t *testing.T) {
 	store := postgres.NewUserStore(pool)
 	u := invitedAccount(t, store)
 	expired := plantedToken(t, pool, u.ID, gouncer.PurposeInvite, time.Nanosecond)
-
-	holder, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("Begin() error = %v", err)
-	}
-	if _, err := holder.Exec(
-		t.Context(),
-		"SELECT id FROM auth.users WHERE id = $1 AND NOT disabled AND NOT confirmed FOR UPDATE", u.ID,
-	); err != nil {
-		t.Fatalf("holding the account: %v", err)
-	}
+	holder := heldUnactivated(t, pool, u.ID)
 
 	swept := make(chan error, 1)
 	go func() {
@@ -269,20 +341,7 @@ func TestTheSweepSparesAnInviteRenewedBesideIt(t *testing.T) {
 	}()
 	time.Sleep(400 * time.Millisecond)
 
-	if _, err := holder.Exec(t.Context(), "DELETE FROM auth.tokens WHERE token_hash = $1", expired.TokenHash); err != nil {
-		t.Fatalf("removing the expired token: %v", err)
-	}
-	renewed, err := gouncer.NewToken(u.ID, gouncer.PurposeInvite, time.Hour)
-	if err != nil {
-		t.Fatalf("NewToken() error = %v", err)
-	}
-	if _, err := holder.Exec(
-		t.Context(),
-		"INSERT INTO auth.tokens (token_hash, user_id, purpose, created_at, expires_at) VALUES ($1,$2,$3,$4,$5)",
-		renewed.TokenHash, renewed.UserID, string(renewed.Purpose), renewed.CreatedAt, renewed.ExpiresAt,
-	); err != nil {
-		t.Fatalf("renewing the invite: %v", err)
-	}
+	renewed := renewedWithin(t, holder, expired, u.ID)
 	if err := holder.Commit(t.Context()); err != nil {
 		t.Fatalf("Commit() error = %v", err)
 	}
