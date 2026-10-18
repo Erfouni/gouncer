@@ -7,6 +7,7 @@ package authkit
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -154,40 +155,51 @@ func allStacks() string {
 	}
 }
 
-// waiters counts the goroutines whose stack names marker that wait in flock and those that wait on a mutex.
-func waiters(marker string) (flocked, mutexed int) {
+// onLock reports whether stack is of a goroutine blocked in the select of lockRenewal.
+func onLock(stack string) bool {
+	header, _, _ := strings.Cut(stack, "\n")
+	return strings.Contains(header, " [select") && strings.Contains(stack, "authkit.(*Setup).lockRenewal(")
+}
+
+// onLeftFlock reports whether stack is of a goroutine blocked in the select of waitLeftFlock.
+func onLeftFlock(stack string) bool {
+	header, _, _ := strings.Cut(stack, "\n")
+	return strings.Contains(header, " [select") && strings.Contains(stack, "authkit.(*Setup).waitLeftFlock(")
+}
+
+// blocked counts, of the goroutines whose stack names marker, those at reports and those on a mutex.
+func blocked(marker string, at func(stack string) bool) (atWait, atMutex int) {
 	for stack := range strings.SplitSeq(allStacks(), "\n\n") {
 		switch {
 		case !strings.Contains(stack, marker):
-		case strings.Contains(stack, "syscall.Flock("):
-			flocked++
+		case at(stack):
+			atWait++
 		case strings.Contains(stack, "sync.(*Mutex).Lock("):
-			mutexed++
+			atMutex++
 		}
 	}
-	return flocked, mutexed
+	return atWait, atMutex
 }
 
-// inFlock reports whether a goroutine whose stack names marker waits in flock.
-func inFlock(marker string) bool {
-	flocked, _ := waiters(marker)
-	return flocked > 0
-}
-
-// settledWaiters polls until n goroutines whose stack names marker wait in flock or on a mutex and answers both counts.
-func settledWaiters(marker string, n int) (flocked, mutexed int) {
+// settledBlocked polls up to waitBound until blocked counts n goroutines whose stack names marker.
+func settledBlocked(marker string, at func(stack string) bool, n int) (atWait, atMutex int) {
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
+	end := time.After(waitBound)
 	for {
-		<-tick.C
-		if flocked, mutexed = waiters(marker); flocked+mutexed == n {
-			return flocked, mutexed
+		select {
+		case <-tick.C:
+		case <-end:
+			return atWait, atMutex
+		}
+		if atWait, atMutex = blocked(marker, at); atWait+atMutex == n {
+			return atWait, atMutex
 		}
 	}
 }
 
-// waitsInFlock polls until a goroutine whose stack names marker waits in flock, answering false once done closes.
-func waitsInFlock(marker string, done <-chan struct{}) bool {
+// blocksOnLock reports whether a goroutine whose stack names marker blocks on the lock file before done closes.
+func blocksOnLock(marker string, done <-chan struct{}) bool {
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -196,7 +208,7 @@ func waitsInFlock(marker string, done <-chan struct{}) bool {
 			return false
 		case <-tick.C:
 		}
-		if inFlock(marker) {
+		if atLock, _ := blocked(marker, onLock); atLock > 0 {
 			return true
 		}
 	}
@@ -218,7 +230,7 @@ func asRenewChild(t *testing.T) bool {
 		defer close(done)
 		err = s.Check(t.Context(), nil, old)
 	}()
-	if waitsInFlock("authkit.asRenewChild", done) {
+	if blocksOnLock("authkit.asRenewChild", done) {
 		fmt.Println("waiting")
 	}
 	<-done
@@ -284,7 +296,7 @@ func TestARenewalWaitsForALockAnotherFileHolds(t *testing.T) {
 		err = s.Check(t.Context(), nil, old)
 	}()
 
-	waited := waitsInFlock(t.Name(), done)
+	waited := blocksOnLock(t.Name(), done)
 	written := temps.Load()
 	if closed := held.Close(); closed != nil {
 		t.Fatalf("closing the held lock file: %v", closed)
@@ -320,7 +332,7 @@ func TestASecondSetupWaitsForTheRenewalAndKeepsItsCode(t *testing.T) {
 			defer close(done)
 			secondErr = second.Check(t.Context(), nil, old)
 		}()
-		waited = waitsInFlock(t.Name(), done)
+		waited = blocksOnLock(t.Name(), done)
 	})
 
 	err := first.Check(t.Context(), nil, old)
@@ -461,6 +473,341 @@ func TestCheckKeepsTheExpiredCodeWhenTheLockFails(t *testing.T) {
 	wantEmptyPrivate(t, lock)
 }
 
+// waitBound is how long a lock test waits for a check that should end.
+const waitBound = 10 * time.Second
+
+// endsWithin reports whether done closes within limit.
+func endsWithin(done <-chan struct{}, limit time.Duration) bool {
+	select {
+	case <-done:
+		return true
+	case <-time.After(limit):
+		return false
+	}
+}
+
+// startedByLockRenewal is the line of a goroutine stack that names lockRenewal as the function that started it.
+const startedByLockRenewal = "created by github.com/gopherium/gouncer/authkit.(*Setup).lockRenewal in goroutine "
+
+// lockCleanups counts the goroutines lockRenewal started that have not yet ended.
+func lockCleanups() int {
+	return strings.Count(allStacks(), startedByLockRenewal)
+}
+
+// settledCleanups polls until every goroutine lockRenewal started has ended.
+func settledCleanups() {
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for lockCleanups() > 0 {
+		<-tick.C
+	}
+}
+
+// cleanupWaits reports whether a goroutine waits in closeAfterFlock for the flock call on its file to answer.
+func cleanupWaits() bool {
+	for stack := range strings.SplitSeq(allStacks(), "\n\n") {
+		header, _, _ := strings.Cut(stack, "\n")
+		if strings.Contains(header, " [chan receive") && strings.Contains(stack, "authkit.closeAfterFlock(") {
+			return true
+		}
+	}
+	return false
+}
+
+// settledCleanupWait polls until a goroutine waits in closeAfterFlock, answering false once waitBound passes.
+func settledCleanupWait() bool {
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	end := time.After(waitBound)
+	for !cleanupWaits() {
+		select {
+		case <-tick.C:
+		case <-end:
+			return false
+		}
+	}
+	return true
+}
+
+// endLockWait checks old under end's context with the lock held elsewhere, answering the files left open and the error.
+func endLockWait(t *testing.T, s *Setup, old string, end func(t *testing.T) context.Context) (kept int, err error) {
+	t.Helper()
+	held := takeLock(t, lockOf(s.cfg.CodeFile))
+	open := openFiles(t)
+	ctx := end(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err = s.Check(ctx, nil, old)
+	}()
+
+	if !endsWithin(done, waitBound) {
+		t.Errorf("Check() still waited for the lock %v after its context ended, want it to end with it", waitBound)
+	}
+	if !settledCleanupWait() {
+		t.Errorf("no cleanup waited for the left flock call within %v, want one", waitBound)
+	}
+	kept = openFiles(t) - open
+	if closed := held.Close(); closed != nil {
+		t.Fatalf("closing the held lock file: %v", closed)
+	}
+	<-done
+	settledCleanups()
+	return kept, err
+}
+
+// flockLooks keeps whether the descriptor of each flock call still named the lock file once the call answered.
+type flockLooks struct {
+	// lock is the path of the lock file.
+	lock string
+	// mu guards seen.
+	mu sync.Mutex
+	// seen holds one entry per answered flock call, true when its descriptor named the lock file.
+	seen []bool
+}
+
+// lookAtFlocks logs for each flock call until t ends whether its descriptor names the lock file of s once it answers.
+func lookAtFlocks(t *testing.T, s *Setup) *flockLooks {
+	t.Helper()
+	looks := &flockLooks{lock: lockOf(s.cfg.CodeFile)}
+	was := flock
+	flock = func(fd, how int) error {
+		err := syscall.Flock(fd, how)
+		var after syscall.Stat_t
+		looks.add(&after, syscall.Fstat(fd, &after))
+		return err
+	}
+	t.Cleanup(func() { flock = was })
+	return looks
+}
+
+// add logs whether the file fstat described in after is the lock file, a failed look counting as another file.
+func (l *flockLooks) add(after *syscall.Stat_t, looked error) {
+	info, err := os.Stat(l.lock)
+	same := looked == nil && err == nil && sameInode(after, info.Sys().(*syscall.Stat_t))
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.seen = append(l.seen, same)
+}
+
+// calls returns what the log holds for each answered flock call, in order.
+func (l *flockLooks) calls() []bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.seen)
+}
+
+// sameInode reports whether a and b describe the same file.
+func sameInode(a, b *syscall.Stat_t) bool {
+	return a.Dev == b.Dev && a.Ino == b.Ino
+}
+
+// TestACheckWaitingForTheLockEndsWithItsContext checks a Check whose context ends while another file holds the lock.
+func TestACheckWaitingForTheLockEndsWithItsContext(t *testing.T) {
+	ended := errors.New("the request ended")
+	for _, tt := range []struct {
+		name string
+		ctx  func(t *testing.T) context.Context
+		want error
+	}{
+		{"a deadline that passes", func(t *testing.T) context.Context {
+			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+			t.Cleanup(cancel)
+			return ctx
+		}, context.DeadlineExceeded},
+		{"a cancel with a cause", func(t *testing.T) context.Context {
+			ctx, cancel := context.WithCancelCause(t.Context())
+			cancel(ended)
+			return ctx
+		}, ended},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s, old := expiredSetup(t)
+			path, lock := s.cfg.CodeFile, lockOf(s.cfg.CodeFile)
+			before := lstatOf(t, path)
+			temps := countTemps(s)
+			looks := lookAtFlocks(t, s)
+
+			kept, err := endLockWait(t, s, old, tt.ctx)
+
+			if !errors.Is(err, tt.want) || !strings.Contains(fmt.Sprint(err), "take the setup code lock at "+lock) {
+				t.Errorf("Check() error = %v, want %v naming the lock file %s", err, tt.want, lock)
+			}
+			wantUnmoved(t, path, before)
+			if now := codeAt(t, path); now != old {
+				t.Errorf("the code file holds %q, want the expired %q kept", now, old)
+			}
+			if written := temps.Load(); written != 0 {
+				t.Errorf("the ended wait wrote %d temporary files, want none", written)
+			}
+			if kept != 1 {
+				t.Errorf("the ended wait left %d more files open, want the lock file open while its flock call runs", kept)
+			}
+			if seen := looks.calls(); !slices.Equal(seen, []bool{true}) {
+				t.Errorf("the flock calls found the lock file at their descriptor once they answered %v, want one "+
+					"that did", seen)
+			}
+			wantLockFree(t, lock)
+		})
+	}
+}
+
+// endingContext returns a context of t cancelled with a cause for even i and one with a short deadline for odd i.
+func endingContext(t *testing.T, i int) context.Context {
+	t.Helper()
+	if i%2 == 0 {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		cancel(errors.New("the request ended"))
+		return ctx
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+	t.Cleanup(cancel)
+	return ctx
+}
+
+// endChecks checks old n times under ending contexts, failing t unless each error names the lock file and its cause.
+func endChecks(t *testing.T, s *Setup, old string, n int) {
+	t.Helper()
+	lock := lockOf(s.cfg.CodeFile)
+	for i := range n {
+		ctx := endingContext(t, i)
+		err := s.Check(ctx, nil, old)
+		cause := context.Cause(ctx)
+		if !errors.Is(err, cause) || !strings.Contains(fmt.Sprint(err), "take the setup code lock at "+lock) {
+			t.Errorf("Check() %d error = %v, want %v naming the lock file %s", i, err, cause, lock)
+		}
+	}
+}
+
+// TestEndedWaitsLeaveOneFlockBehind checks that many waits ending while the lock is held leave one flock call behind.
+func TestEndedWaitsLeaveOneFlockBehind(t *testing.T) {
+	const waits = 20
+	s, old := expiredSetup(t)
+	lock := lockOf(s.cfg.CodeFile)
+	open := openFiles(t)
+	held := takeLock(t, lock)
+	holding := openFiles(t)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		endChecks(t, s, old, waits)
+	}()
+
+	ended := endsWithin(done, waitBound)
+	started, kept := lockCleanups(), openFiles(t)-holding
+	if err := held.Close(); err != nil {
+		t.Fatalf("closing the held lock file: %v", err)
+	}
+	<-done
+	settledCleanups()
+
+	if !ended {
+		t.Errorf("the %d checks still waited %v after their contexts ended, want each to end with its own", waits,
+			waitBound)
+	}
+	if started > 2 || kept != 1 {
+		t.Errorf("%d ended waits left %d goroutines of lockRenewal and %d more files open, want at most two "+
+			"goroutines and one file", waits, started, kept)
+	}
+	if now := openFiles(t); now != open {
+		t.Errorf("once the lock was free %d more files stayed open, want none", now-open)
+	}
+	wantLockFree(t, lock)
+	live, cancel := context.WithTimeout(t.Context(), waitBound)
+	defer cancel()
+	if err := s.Check(live, nil, old); !errors.Is(err, ErrSetupCodeExpired) {
+		t.Errorf("a later Check() error = %v, want ErrSetupCodeExpired", err)
+	}
+	wantOnlyFreshCode(t, s.cfg.CodeFile, old)
+	if s.lock.left != nil {
+		t.Errorf("the Setup still holds the left flock call's channel after the later renewal waited for it, want none")
+	}
+}
+
+// renewEach checks old on every Setup at once, frees held once each blocks, and answers where they blocked.
+func renewEach(t *testing.T, held *os.File, old string, setups ...*Setup) (atLeft, atMutex int) {
+	t.Helper()
+	renewed := make(chan error, len(setups))
+	for _, s := range setups {
+		go func() { renewed <- s.Check(t.Context(), nil, old) }()
+	}
+	atLeft, atMutex = settledBlocked("authkit.renewEach.func", onLeftFlock, len(setups))
+	if err := held.Close(); err != nil {
+		t.Fatalf("closing the held lock file: %v", err)
+	}
+	for range setups {
+		if err := <-renewed; !errors.Is(err, ErrSetupCodeExpired) {
+			t.Errorf("a live Check() error = %v, want ErrSetupCodeExpired", err)
+		}
+	}
+	settledCleanups()
+	return atLeft, atMutex
+}
+
+// TestEndedWaitsLeaveOneFlockPerSetup checks that two Setups on one code file each leave one flock call behind.
+func TestEndedWaitsLeaveOneFlockPerSetup(t *testing.T) {
+	const waits = 5
+	a, old := expiredSetup(t)
+	b := beside(a)
+	lock := lockOf(a.cfg.CodeFile)
+	open := openFiles(t)
+	held := takeLock(t, lock)
+	holding := openFiles(t)
+
+	endChecks(t, a, old, waits)
+	endChecks(t, b, old, waits)
+	started, kept := lockCleanups(), openFiles(t)-holding
+	atLeft, atMutex := renewEach(t, held, old, a, b)
+
+	if started != 4 || kept != 2 {
+		t.Errorf("two Setups after %d ended waits each left %d goroutines of lockRenewal and %d more files open, "+
+			"want 4 and 2", waits, started, kept)
+	}
+	if atLeft != 2 || atMutex != 0 {
+		t.Errorf("%d live checks blocked on a left flock call and %d on a mutex, want 2 and 0", atLeft, atMutex)
+	}
+	wantOnlyFreshCode(t, a.cfg.CodeFile, old)
+	if now := openFiles(t); now != open {
+		t.Errorf("once the lock was free %d more files stayed open, want none", now-open)
+	}
+	wantLockFree(t, lock)
+	if a.lock.left != nil || b.lock.left != nil {
+		t.Errorf("a Setup still holds a left flock call's channel after its renewal waited for it, want none")
+	}
+}
+
+// failFlockOnRelease makes every flock call wait for release to close and then fail with ENOLCK until t ends.
+func failFlockOnRelease(t *testing.T, release <-chan struct{}) {
+	t.Helper()
+	was := flock
+	flock = func(int, int) error {
+		<-release
+		return syscall.ENOLCK
+	}
+	t.Cleanup(func() { flock = was })
+}
+
+// TestAFlockFailingAfterItsWaitEndedClosesTheFile checks that a left flock call that fails closes its file.
+func TestAFlockFailingAfterItsWaitEndedClosesTheFile(t *testing.T) {
+	release := make(chan struct{})
+	failFlockOnRelease(t, release)
+	s, old := expiredSetup(t)
+	open := openFiles(t)
+
+	endChecks(t, s, old, 1)
+	close(release)
+	settledCleanups()
+
+	if now := openFiles(t); now != open {
+		t.Errorf("once the left flock call failed %d more files stayed open, want none", now-open)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), waitBound)
+	defer cancel()
+	if err := s.Check(ctx, nil, old); !errors.Is(err, syscall.ENOLCK) {
+		t.Errorf("a later Check() error = %v, want its own flock call failing with ENOLCK", err)
+	}
+}
+
 // TestTheLockFileStaysEmptyAndPrivate checks the lock file after a renewal and after the first account closes setup.
 func TestTheLockFileStaysEmptyAndPrivate(t *testing.T) {
 	s, old := expiredSetup(t)
@@ -530,19 +877,47 @@ func TestTheLockIsTakenInsideTheMutex(t *testing.T) {
 		wg.Go(func() { answers[i] = s.Check(t.Context(), nil, old) })
 	}
 
-	flocked, mutexed := settledWaiters(t.Name(), racers)
+	atLock, atMutex := settledBlocked(t.Name(), onLock, racers)
 	if err := held.Close(); err != nil {
 		t.Fatalf("closing the held lock file: %v", err)
 	}
 	wg.Wait()
 
-	if flocked != 1 || mutexed != racers-1 {
-		t.Errorf("%d checks waited in flock and %d on the mutex, want one in flock and %d on the mutex", flocked,
-			mutexed, racers-1)
+	if atLock != 1 || atMutex != racers-1 {
+		t.Errorf("%d checks blocked on the lock file and %d on the mutex, want one on the lock file and %d on the "+
+			"mutex", atLock, atMutex, racers-1)
 	}
 	for i, err := range answers {
 		if !errors.Is(err, ErrSetupCodeExpired) {
 			t.Errorf("Check() %d error = %v, want ErrSetupCodeExpired", i, err)
 		}
+	}
+}
+
+// TestTheLeftFlockIsAwaitedInsideTheMutex checks that only the renewal holding the mutex waits for the left flock call.
+func TestTheLeftFlockIsAwaitedInsideTheMutex(t *testing.T) {
+	const racers = 8
+	s, old := expiredSetup(t)
+	held := takeLock(t, lockOf(s.cfg.CodeFile))
+	endChecks(t, s, old, 1)
+	renewed := make(chan error, racers)
+	for range racers {
+		go func() { renewed <- s.Check(t.Context(), nil, old) }()
+	}
+
+	atLeft, atMutex := settledBlocked(t.Name(), onLeftFlock, racers)
+	if err := held.Close(); err != nil {
+		t.Fatalf("closing the held lock file: %v", err)
+	}
+	for range racers {
+		if err := <-renewed; !errors.Is(err, ErrSetupCodeExpired) {
+			t.Errorf("a racing Check() error = %v, want ErrSetupCodeExpired", err)
+		}
+	}
+	settledCleanups()
+
+	if atLeft != 1 || atMutex != racers-1 {
+		t.Errorf("%d checks blocked on the left flock call and %d on the mutex, want one on the flock call and %d "+
+			"on the mutex", atLeft, atMutex, racers-1)
 	}
 }

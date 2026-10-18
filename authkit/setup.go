@@ -94,6 +94,8 @@ type Setup struct {
 	closed atomic.Bool
 	// renewing serializes the renewals of a stale code.
 	renewing sync.Mutex
+	// lock is what its renewals share of the lock file, guarded by renewing.
+	lock renewalLock
 	// now reads the clock.
 	now func() time.Time
 	// lstat reads a path without following a symbolic link.

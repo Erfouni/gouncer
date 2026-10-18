@@ -4,7 +4,15 @@
 
 package authkit
 
+import "context"
+
+// renewalLock holds nothing on a system where renewals take no lock file.
+type renewalLock struct{}
+
+// release frees nothing.
+func (renewalLock) release() {}
+
 // lockRenewal takes no lock on this system and answers a call that frees nothing.
-func (*Setup) lockRenewal() (func(), error) {
-	return func() {}, nil
+func (s *Setup) lockRenewal(context.Context) (func(), error) {
+	return s.lock.release, nil
 }

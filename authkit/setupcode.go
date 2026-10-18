@@ -70,7 +70,7 @@ func (s *Setup) expired(expiresAt time.Time) bool {
 func (s *Setup) renewCode(ctx context.Context, stale heldCode) (heldCode, error) {
 	s.renewing.Lock()
 	defer s.renewing.Unlock()
-	unlock, err := s.lockRenewal()
+	unlock, err := s.lockRenewal(ctx)
 	if err != nil {
 		return heldCode{}, err
 	}
