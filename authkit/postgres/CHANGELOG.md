@@ -16,7 +16,8 @@ Releases of this module are tagged `authkit/postgres/vX.Y.Z`.
   `CreateFirstUser`, which stores the first account only while the store
   holds none, or returns `authkit.ErrSetupDone`. Its transaction locks
   `auth.users` in `SHARE ROW EXCLUSIVE` mode, so no other account lands
-  beside it.
+  beside it. Under `Within`, it refuses a transaction that is not READ
+  COMMITTED.
 
 ### Changed
 
