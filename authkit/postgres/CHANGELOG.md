@@ -8,6 +8,21 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/postgres/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `HasUsers`, reporting whether the store holds any account, and
+  `CreateFirstUser`, which stores the first account only while the store
+  holds none, or returns `authkit.ErrSetupDone`. Its transaction locks
+  `auth.users` in `SHARE ROW EXCLUSIVE` mode, so no other account lands
+  beside it. Under `Within`, it refuses a transaction that is not READ
+  COMMITTED.
+
+### Changed
+
+- Requires authkit v0.22.0.
+
 ## [0.14.0] - 2026-10-13
 
 ### Added

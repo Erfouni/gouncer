@@ -391,6 +391,17 @@ func (q *Queries) GrantRoleToRoleless(ctx context.Context, role string) (int64, 
 	return result.RowsAffected()
 }
 
+const HasUsers = `-- name: HasUsers :one
+SELECT EXISTS (SELECT 1 FROM auth_users)
+`
+
+func (q *Queries) HasUsers(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, HasUsers)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const HoldsPrivilege = `-- name: HoldsPrivilege :one
 SELECT count(*)
 FROM auth_users

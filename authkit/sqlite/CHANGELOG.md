@@ -8,6 +8,19 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/sqlite/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `HasUsers`, reporting whether the store holds any account, and
+  `CreateFirstUser`, which stores the first account only while the store
+  holds none, or returns `authkit.ErrSetupDone`. It checks and inserts in
+  one immediate write transaction.
+
+### Changed
+
+- Requires authkit v0.22.0.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

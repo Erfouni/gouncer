@@ -7,7 +7,7 @@ require (
 	github.com/gopherium/framework/dbkit v0.2.0
 	github.com/gopherium/framework/dbkit/sqlite v0.1.0
 	github.com/gopherium/gouncer v0.4.0
-	github.com/gopherium/gouncer/authkit v0.20.0
+	github.com/gopherium/gouncer/authkit v0.22.0
 )
 
 require (
