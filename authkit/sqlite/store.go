@@ -33,7 +33,16 @@ func NewUserStore(handle *sql.DB) *UserStore {
 
 // CreateUser stores a new user, or answers gouncer.ErrEmailTaken when the email is already in use.
 func (s *UserStore) CreateUser(ctx context.Context, u gouncer.User) error {
-	err := s.queries.CreateUser(ctx, db.CreateUserParams{
+	err := s.queries.CreateUser(ctx, newUserParams(u))
+	if errors.Is(dbsqlite.Classify(err), dbkit.ErrUnique) {
+		return gouncer.ErrEmailTaken
+	}
+	return failed("create user", err)
+}
+
+// newUserParams returns the insert parameters that store u.
+func newUserParams(u gouncer.User) db.CreateUserParams {
+	return db.CreateUserParams{
 		ID:           u.ID,
 		Email:        u.Email,
 		Name:         u.Name,
@@ -42,11 +51,7 @@ func (s *UserStore) CreateUser(ctx context.Context, u gouncer.User) error {
 		CreatedAt:    dbkit.Time{Time: u.CreatedAt},
 		Role:         u.Role,
 		Confirmed:    u.Confirmed,
-	})
-	if errors.Is(dbsqlite.Classify(err), dbkit.ErrUnique) {
-		return gouncer.ErrEmailTaken
 	}
-	return failed("create user", err)
 }
 
 // UserByEmail returns the user owning the email, or gouncer.ErrUserNotFound when none does.
@@ -213,5 +218,6 @@ func isSentinel(err error) bool {
 		errors.Is(err, gouncer.ErrTokenNotFound) ||
 		errors.Is(err, gouncer.ErrUserNotFound) ||
 		errors.Is(err, gouncer.ErrLastPrivileged) ||
-		errors.Is(err, authkit.ErrRoleChanged)
+		errors.Is(err, authkit.ErrRoleChanged) ||
+		errors.Is(err, authkit.ErrSetupDone)
 }

@@ -4,6 +4,9 @@
 INSERT INTO auth_users (id, email, name, password_hash, disabled, created_at, role, confirmed)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
+-- name: HasUsers :one
+SELECT EXISTS (SELECT 1 FROM auth_users);
+
 -- name: GetUserByEmail :one
 SELECT id, email, name, password_hash, disabled, created_at, role, confirmed
 FROM auth_users

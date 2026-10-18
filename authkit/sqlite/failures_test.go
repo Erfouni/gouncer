@@ -101,6 +101,14 @@ var statementFaults = []faultCase{
 			user.Email = "another@example.com"
 			return s.CreateUser(ctx, user)
 		}},
+	{"check for any account", db.HasUsers, "has users",
+		func(ctx context.Context, s *sqlite.UserStore, _ faultWorld) error {
+			return ignoreValue(s.HasUsers(ctx))
+		}},
+	{"check for any account before the first", db.HasUsers, "create first user",
+		func(ctx context.Context, s *sqlite.UserStore, _ faultWorld) error {
+			return s.CreateFirstUser(ctx, firstAccount())
+		}},
 	{"list users", db.ListUsers, "list users",
 		func(ctx context.Context, s *sqlite.UserStore, _ faultWorld) error {
 			return ignoreValue(s.ListUsers(ctx))
@@ -219,6 +227,23 @@ var statementFaults = []faultCase{
 		}},
 }
 
+// firstFaults are the failures of a first account on a store holding none, one for each write it makes.
+var firstFaults = []struct {
+	// name says which write fails.
+	name string
+	// plant makes the write fail.
+	plant func(faults *sqlitetest.Faults)
+}{
+	{"store the first account", func(faults *sqlitetest.Faults) { faults.FailStatement(db.CreateUser, errPlanted) }},
+	{"commit the first account", func(faults *sqlitetest.Faults) { faults.FailNextCommit(errPlanted) }},
+}
+
+// firstAccount returns an enabled account that a first account creation stores.
+func firstAccount() gouncer.User {
+	return gouncer.User{ID: uuid.New(), Email: "maria@example.com", Name: "Maria Perez", PasswordHash: "first-hash",
+		CreatedAt: time.Now()}
+}
+
 // tokenFor returns a reset token for user that lasts an hour.
 func tokenFor(user gouncer.User) gouncer.Token {
 	token, err := gouncer.NewToken(user.ID, gouncer.PurposeReset, time.Hour)
@@ -273,6 +298,26 @@ func TestAFailedCommitReachesTheCallerAndKeepsNothing(t *testing.T) {
 	if stored, readErr := store.UserByID(t.Context(), world.admin.ID); readErr != nil || stored.Disabled {
 		t.Errorf("after the failed commit the account reads disabled %t with %v, want it enabled", stored.Disabled,
 			readErr)
+	}
+}
+
+func TestAFailedFirstAccountReachesTheCallerAndKeepsNoAccount(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range firstFaults {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			faults := &sqlitetest.Faults{}
+			handle := template.OpenWithFaults(t, faults)
+			tc.plant(faults)
+
+			err := sqlite.NewUserStore(handle).CreateFirstUser(t.Context(), firstAccount())
+
+			wantFailure(t, err, "create first user")
+			if held := count(t, handle, "SELECT count(*) FROM auth_users"); held != 0 {
+				t.Errorf("the failed first account left %d accounts, want none", held)
+			}
+		})
 	}
 }
 

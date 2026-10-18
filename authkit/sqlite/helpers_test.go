@@ -23,6 +23,7 @@ var (
 	_ authkit.AdminStore    = (*sqlite.UserStore)(nil)
 	_ authkit.SessionReaper = (*sqlite.UserStore)(nil)
 	_ authkit.InviteStore   = (*sqlite.UserStore)(nil)
+	_ authkit.SetupStore    = (*sqlite.UserStore)(nil)
 	_ authkit.TokenReaper   = (*sqlite.UserStore)(nil)
 )
 
