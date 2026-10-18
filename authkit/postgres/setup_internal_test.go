@@ -26,6 +26,7 @@ var firstUserSteps = []struct {
 }{
 	{"the begin", expectFirstBegin},
 	{"the lock", expectUsersLock},
+	{"the isolation read", expectReadCommitted},
 	{"the check", expectNoUsers},
 	{"the insert", expectFirstInsert},
 	{"the commit", expectFirstCommit},
@@ -47,6 +48,20 @@ func expectUsersLock(mock pgxmock.PgxPoolIface, _ gouncer.User, failing bool) {
 		return
 	}
 	lock.WillReturnResult(pgxmock.NewResult("LOCK TABLE", 0))
+}
+
+// expectIsolation expects the transaction's isolation level to be read, answering level.
+func expectIsolation(mock pgxmock.PgxPoolIface, level string) *pgxmock.ExpectedQuery {
+	read := mock.ExpectQuery(`^SELECT current_setting\('transaction_isolation'\)$`)
+	return read.WillReturnRows(pgxmock.NewRows([]string{"current_setting"}).AddRow(level))
+}
+
+// expectReadCommitted expects the isolation level to be read as read committed, failing when failing.
+func expectReadCommitted(mock pgxmock.PgxPoolIface, _ gouncer.User, failing bool) {
+	read := expectIsolation(mock, "read committed")
+	if failing {
+		read.WillReturnError(errBackend)
+	}
 }
 
 // expectNoUsers expects the check for any account to find none, failing when failing.
@@ -122,6 +137,33 @@ func TestCreateFirstUserNamesEachFailure(t *testing.T) {
 			err := newUserStore(mock).CreateFirstUser(t.Context(), u)
 
 			wantNamed(t, mock, err, "postgres: create first user")
+		})
+	}
+}
+
+func TestCreateFirstUserRefusesALevelThatKeepsAnOlderSnapshot(t *testing.T) {
+	t.Parallel()
+
+	for _, level := range []string{"repeatable read", "serializable"} {
+		t.Run(level, func(t *testing.T) {
+			t.Parallel()
+
+			mock := mockPool(t)
+			u := firstAccount()
+			expectFirstBegin(mock, u, false)
+			expectUsersLock(mock, u, false)
+			expectIsolation(mock, level)
+			mock.ExpectRollback()
+
+			err := newUserStore(mock).CreateFirstUser(t.Context(), u)
+
+			want := "postgres: create first user: a first account needs READ COMMITTED, the transaction runs " + level
+			if fmt.Sprint(err) != want {
+				t.Errorf("error = %v, want %q", err, want)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("unmet expectations: %v", err)
+			}
 		})
 	}
 }
