@@ -695,9 +695,11 @@ func TestARenewalHoldsTheLockWhileItWrites(t *testing.T) {
 	s, old := expiredSetup(t)
 	var free bool
 	onTempFile(s, func() {
-		if s.renewing.TryLock() {
+		select {
+		case s.renewing <- struct{}{}:
 			free = true
-			s.renewing.Unlock()
+			<-s.renewing
+		default:
 		}
 	})
 

@@ -167,14 +167,21 @@ func onLeftFlock(stack string) bool {
 	return strings.Contains(header, " [select") && strings.Contains(stack, "authkit.(*Setup).waitLeftFlock(")
 }
 
-// blocked counts, of the goroutines whose stack names marker, those at reports and those on a mutex.
+// onMutex reports whether stack is of a goroutine blocked in the select of renewCode, on the renewal mutex.
+func onMutex(stack string) bool {
+	header, _, _ := strings.Cut(stack, "\n")
+	return strings.Contains(header, " [select") && strings.Contains(stack, "authkit.(*Setup).renewCode(") &&
+		!onLock(stack) && !onLeftFlock(stack)
+}
+
+// blocked counts, of the goroutines whose stack names marker, those at reports and those on the renewal mutex.
 func blocked(marker string, at func(stack string) bool) (atWait, atMutex int) {
 	for stack := range strings.SplitSeq(allStacks(), "\n\n") {
 		switch {
 		case !strings.Contains(stack, marker):
 		case at(stack):
 			atWait++
-		case strings.Contains(stack, "sync.(*Mutex).Lock("):
+		case onMutex(stack):
 			atMutex++
 		}
 	}
@@ -891,6 +898,59 @@ func TestTheLockIsTakenInsideTheMutex(t *testing.T) {
 		if !errors.Is(err, ErrSetupCodeExpired) {
 			t.Errorf("Check() %d error = %v, want ErrSetupCodeExpired", i, err)
 		}
+	}
+}
+
+// TestACheckQueuedOnTheMutexEndsWithItsContext checks a Check whose context ends while another renewal holds the mutex.
+func TestACheckQueuedOnTheMutexEndsWithItsContext(t *testing.T) {
+	s, old := expiredSetup(t)
+	path := s.cfg.CodeFile
+	temps := countTemps(s)
+	held := takeLock(t, lockOf(path))
+	first := make(chan error, 1)
+	holding := make(chan struct{})
+	go func() {
+		defer close(holding)
+		first <- s.Check(t.Context(), nil, old)
+	}()
+	if !blocksOnLock(t.Name(), holding) {
+		t.Fatalf("the first Check() never blocked on the lock file")
+	}
+	before := lstatOf(t, path)
+	ended := errors.New("the request ended")
+
+	ends, err := queuedCheck(s, old, ended)
+	wantUnmoved(t, path, before)
+	written := temps.Load()
+	if closed := held.Close(); closed != nil {
+		t.Fatalf("closing the held lock file: %v", closed)
+	}
+
+	if !ends {
+		t.Errorf("the queued Check() still waited %v after its context ended, want it to end with it", waitBound)
+	}
+	if !errors.Is(err, ended) || !strings.Contains(fmt.Sprint(err), "wait for the setup code renewal") {
+		t.Errorf("the queued Check() error = %v, want %v naming the renewal it waited for", err, ended)
+	}
+	if written != 0 {
+		t.Errorf("the queued Check() wrote %d temporary files, want none", written)
+	}
+	if err := <-first; !errors.Is(err, ErrSetupCodeExpired) {
+		t.Errorf("the first Check() error = %v, want ErrSetupCodeExpired once the lock was free", err)
+	}
+}
+
+// queuedCheck checks old on s under a context already ended with cause, answering whether it ended within waitBound.
+func queuedCheck(s *Setup, old string, cause error) (bool, error) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(cause)
+	answer := make(chan error, 1)
+	go func() { answer <- s.Check(ctx, nil, old) }()
+	select {
+	case err := <-answer:
+		return true, err
+	case <-time.After(waitBound):
+		return false, nil
 	}
 }
 

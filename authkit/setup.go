@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -92,8 +91,8 @@ type Setup struct {
 	cfg SetupConfig
 	// closed reports whether this process saw the store hold an account.
 	closed atomic.Bool
-	// renewing serializes the renewals of a stale code.
-	renewing sync.Mutex
+	// renewing is the renewal mutex, holding one token while a renewal of a stale code runs.
+	renewing chan struct{}
 	// lock is what its renewals share of the lock file, guarded by renewing.
 	lock renewalLock
 	// now reads the clock.
@@ -114,7 +113,8 @@ func NewSetup(cfg SetupConfig) *Setup {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Setup{cfg: cfg, now: time.Now, lstat: os.Lstat, openFile: os.Open, createTemp: os.CreateTemp}
+	return &Setup{cfg: cfg, renewing: make(chan struct{}, 1), now: time.Now, lstat: os.Lstat, openFile: os.Open,
+		createTemp: os.CreateTemp}
 }
 
 // Prepare keeps, writes or removes the code by whether store holds an account. Call it after plugins register roles.

@@ -68,14 +68,31 @@ func (s *Setup) expired(expiresAt time.Time) bool {
 
 // renewCode renews the stale code while it holds the renewal mutex and the lock file beside the code file.
 func (s *Setup) renewCode(ctx context.Context, stale heldCode) (heldCode, error) {
-	s.renewing.Lock()
-	defer s.renewing.Unlock()
+	if err := s.takeRenewal(ctx); err != nil {
+		return heldCode{}, err
+	}
+	defer func() { <-s.renewing }()
 	unlock, err := s.lockRenewal(ctx)
 	if err != nil {
 		return heldCode{}, err
 	}
 	defer unlock()
 	return s.renewLocked(ctx, stale)
+}
+
+// takeRenewal takes the renewal mutex at once when it is free, or waits for it until ctx ends.
+func (s *Setup) takeRenewal(ctx context.Context) error {
+	select {
+	case s.renewing <- struct{}{}:
+		return nil
+	default:
+	}
+	select {
+	case s.renewing <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("authkit: wait for the setup code renewal: %w", context.Cause(ctx))
+	}
 }
 
 // renewLocked replaces the stale code with a fresh one, answering instead a live private code another renewal left.
