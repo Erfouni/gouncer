@@ -10,7 +10,8 @@ Session authentication for React apps backed by gouncer's authkit.
 - `@gopherium/react-auth/admin` is the user administration API client.
 - `@gopherium/react-auth/wpds` renders the WordPress Design System UI:
   `LoginScreen` (brand prop), `AccountPanel`, `UsersScreen`,
-  `NewUserScreen`, and `usersNavItem`. Import
+  `NewUserScreen`, `usersNavItem`, and `SetupCodeStep`, which asks for
+  the one-time setup code as Jenkins' "Unlock Jenkins" does. Import
   `@gopherium/react-auth/wpds/style.css` alongside it.
 - `@gopherium/react-auth/testing` is the msw harness: `server`,
   `installTestEnvironment`, `seedSession`, `defaultUser`, and canned
