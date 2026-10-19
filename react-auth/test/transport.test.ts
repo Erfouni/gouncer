@@ -5,8 +5,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { createUser, fetchUsers, invite } from '../src/admin'
 import {
 	acceptInvite,
+	checkSetupCode,
 	configureAuthTransport,
+	createFirstAccount,
 	fetchSession,
+	isSetupOpen,
 	login,
 	requestPasswordReset,
 	resetAuthTransport,
@@ -98,4 +101,37 @@ test('a configured transport carries the invitation operations', async () => {
 	expect(injectedAccept).toHaveBeenCalledWith('t-123', 'password1234')
 	expect(injectedRequest).toHaveBeenCalledWith('maria@example.com')
 	expect(injectedReset).toHaveBeenCalledWith('t-123', 'password1234')
+})
+
+test('a configured transport replaces all three setup calls', async () => {
+	const createdAccount = {
+		id: 'u3',
+		email: 'maria@example.com',
+		name: 'Maria Perez',
+		disabled: false,
+		role: 'owner',
+		created_at: new Date(),
+	}
+	const firstAccount = {
+		code: 'K7QW3MZTB2XQ5LJ4N6RAHYCDEF',
+		email: 'maria@example.com',
+		name: 'Maria Perez',
+		password: 'correct horse battery',
+	}
+	const injectedOpen = vi.fn().mockResolvedValue(true)
+	const injectedCheck = vi.fn().mockResolvedValue(undefined)
+	const injectedCreate = vi.fn().mockResolvedValue(createdAccount)
+	configureAuthTransport({
+		isSetupOpen: injectedOpen,
+		checkSetupCode: injectedCheck,
+		createFirstAccount: injectedCreate,
+	})
+
+	await expect(isSetupOpen()).resolves.toBe(true)
+	await expect(checkSetupCode(firstAccount.code)).resolves.toBeUndefined()
+	await expect(createFirstAccount(firstAccount)).resolves.toEqual(createdAccount)
+
+	expect(injectedOpen).toHaveBeenCalledOnce()
+	expect(injectedCheck).toHaveBeenCalledWith(firstAccount.code)
+	expect(injectedCreate).toHaveBeenCalledWith(firstAccount)
 })

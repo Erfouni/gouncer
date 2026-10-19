@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+export type { Account } from './account.js'
 export {
 	InvalidCredentialsError,
 	InvalidTokenError,
@@ -22,5 +23,14 @@ export type { Catalog } from './languages.js'
 export { isSessionRevoked } from './probe.js'
 export { createAuthQueryClient } from './queryClient.js'
 export { adoptSession, sessionQueryKey, useLogout, useSession } from './session.js'
+export {
+	SetupClosedError,
+	SetupCodeError,
+	SiteStartingError,
+	checkSetupCode,
+	createFirstAccount,
+	isSetupOpen,
+} from './setup.js'
+export type { FirstAccount } from './setup.js'
 export { configureAuthTransport, resetAuthTransport } from './transport.js'
 export type { AuthTransport } from './transport.js'

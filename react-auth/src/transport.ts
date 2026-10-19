@@ -2,6 +2,7 @@
 
 import type { Invitation, NewInvite, User as Account, NewUser } from './admin/index.js'
 import type { User } from './api.js'
+import type { FirstAccount } from './setup.js'
 
 /**
  * AuthTransport carries every backend call of the package, so a consumer
@@ -22,6 +23,9 @@ export interface AuthTransport {
 	acceptInvite(token: string, password: string): Promise<User>
 	requestPasswordReset(email: string): Promise<void>
 	resetPassword(token: string, password: string): Promise<void>
+	isSetupOpen(signal?: AbortSignal): Promise<boolean>
+	checkSetupCode(code: string): Promise<void>
+	createFirstAccount(input: FirstAccount): Promise<Account>
 }
 
 let overrides: Partial<AuthTransport> = {}

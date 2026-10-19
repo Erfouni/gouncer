@@ -11,6 +11,20 @@ import type { User } from '../api.js'
 import { sessionQueryKey } from '../session.js'
 
 export { http, HttpResponse } from 'msw'
+export {
+	createdAccount,
+	firstAccountClosed,
+	firstAccountCodeRefused,
+	firstAccountOk,
+	firstAccountRateLimited,
+	firstAccountStarting,
+	setupCodeClosed,
+	setupCodeOk,
+	setupCodeRateLimited,
+	setupCodeRefused,
+	setupCodeStarting,
+	setupStatus,
+} from './setup.js'
 
 export const server = setupServer()
 
