@@ -67,6 +67,90 @@
 	padding: 10px 0;
 }
 
+.gopherium-setup__help {
+	margin: 4px 0 0;
+	font-size: var(--wpds-typography-font-size-sm);
+}
+
+.gopherium-setup__password {
+	display: flex;
+	column-gap: 4px;
+}
+
+.gopherium-setup__password-field {
+	width: 100%;
+	min-width: 0;
+}
+
+.gopherium-setup__meter {
+	box-sizing: border-box;
+	width: 100%;
+	margin: -1px 1px 5px;
+	padding: 3px 5px;
+	border: var(--wpds-border-width-xs) solid var(--wpds-color-stroke-surface-neutral);
+	border-radius: var(--wpds-border-radius-sm);
+	color: var(--wpds-color-foreground-content-neutral);
+	font-size: var(--wpds-typography-font-size-md);
+	font-weight: normal;
+	text-align: center;
+	opacity: 0;
+}
+
+.gopherium-setup__meter--short {
+	border-color: var(--wpds-color-stroke-surface-error-strong);
+	background-color: var(--wpds-color-background-surface-error);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--bad {
+	border-color: var(--wpds-color-stroke-surface-error);
+	background-color: var(--wpds-color-background-surface-error-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--good {
+	border-color: var(--wpds-color-stroke-surface-caution);
+	background-color: var(--wpds-color-background-surface-caution-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--strong {
+	border-color: var(--wpds-color-stroke-surface-success);
+	background-color: var(--wpds-color-background-surface-success-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__input input {
+	font-family: var(--wpds-typography-font-family-mono);
+}
+
+.gopherium-setup__input--short:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-error-strong);
+}
+
+.gopherium-setup__input--bad:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-error);
+}
+
+.gopherium-setup__input--good:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-caution);
+}
+
+.gopherium-setup__input--strong:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-success);
+}
+
+.gopherium-setup__caps:empty {
+	display: none;
+}
+
+.gopherium-setup__caps {
+	padding: 6px 10px;
+	border: var(--wpds-border-width-xs) solid var(--wpds-color-stroke-surface-caution);
+	background-color: var(--wpds-color-background-surface-caution-weak);
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
 .gopherium-setup__step {
 	margin: 20px 0 15px;
 	padding: 0;
@@ -78,6 +162,10 @@
 		grid-template-columns: minmax(0, 1fr);
 		row-gap: 5px;
 		padding: 20px 0 5px;
+	}
+
+	.gopherium-setup__meter {
+		padding: 8px;
 	}
 }
 

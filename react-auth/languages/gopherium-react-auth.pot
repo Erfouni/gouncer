@@ -16,6 +16,15 @@ msgstr ""
 msgid "Back to login"
 msgstr ""
 
+msgid "Caps lock is on."
+msgstr ""
+
+msgid "Confirm Password"
+msgstr ""
+
+msgid "Confirm use of weak password"
+msgstr ""
+
 msgid "Continue"
 msgstr ""
 
@@ -31,6 +40,9 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
+msgid "Double-check your email address before continuing."
+msgstr ""
+
 msgid "Enable"
 msgstr ""
 
@@ -40,7 +52,21 @@ msgstr ""
 msgid "Go to login"
 msgstr ""
 
+msgid "Hide"
+msgstr ""
+
+msgid "Hide password"
+msgstr ""
+
+msgid "Hint: The password should be at least %d character long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgid_plural "Hint: The password should be at least %d characters long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgstr[0] ""
+msgstr[1] ""
+
 msgid "If that address has an account, a reset link is on its way."
+msgstr ""
+
+msgid "Important:"
 msgstr ""
 
 msgid "Invalid email or password."
@@ -76,6 +102,9 @@ msgstr ""
 msgid "Please copy the setup code from the file and paste it below."
 msgstr ""
 
+msgid "Please provide a name."
+msgstr ""
+
 msgid "Send invitation"
 msgstr ""
 
@@ -88,7 +117,19 @@ msgstr ""
 msgid "Setup code"
 msgstr ""
 
+msgid "Show"
+msgstr ""
+
+msgid "Show password"
+msgstr ""
+
 msgid "Something went wrong."
+msgstr ""
+
+msgid "Sorry, that is not a valid email address. Email addresses look like <code>username@example.com</code>."
+msgstr ""
+
+msgid "The account could not be created, please try again."
 msgstr ""
 
 msgid "The invitation could not be sent."
@@ -110,6 +151,12 @@ msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
 msgid "This link is no longer valid. Ask the person who invited you for a new one."
+msgstr ""
+
+msgid "This name is too long."
+msgstr ""
+
+msgid "This password is too long."
 msgstr ""
 
 msgid "To ensure this site is securely set up by its owner, a setup code has been written to a file on the server."
@@ -134,6 +181,12 @@ msgid "Users could not be loaded."
 msgstr ""
 
 msgid "You appear to have already set up this site."
+msgstr ""
+
+msgid "You will need this password to log in. Please store it in a secure location."
+msgstr ""
+
+msgid "Your Email"
 msgstr ""
 
 msgid "Your password is set. Sign in with it."
@@ -195,4 +248,24 @@ msgstr ""
 
 msgctxt "page heading"
 msgid "Users"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Medium"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Password strength unknown"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Strong"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Very weak"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Weak"
 msgstr ""

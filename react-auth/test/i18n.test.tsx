@@ -7,7 +7,12 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { DOMAIN } from '../src/domain'
 import { seedSession } from '../src/testing'
-import { AccountPanel, LoginScreen, SetupCodeStep, usersNavItem } from '../src/wpds'
+import { AccountPanel, LoginScreen, SetupAccountStep, SetupCodeStep, usersNavItem } from '../src/wpds'
+
+vi.mock('../src/wpds/strength', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../src/wpds/strength')>()),
+	loadMeter: async () => () => 4,
+}))
 
 setLocaleData(
 	{
@@ -18,6 +23,8 @@ setLocaleData(
 		'Log out': ['Salir'],
 		'Unlock %s': ['Desbloquear %s'],
 		'Setup code': ['Codigo'],
+		'Your Email': ['Tu correo electrónico'],
+		'password strength\u0004Strong': ['Fuerte'],
 	},
 	DOMAIN,
 )
@@ -75,4 +82,17 @@ test('the code step follows the catalogue the consumer loaded', () => {
 
 	expect(screen.getByLabelText('Codigo')).toBeInTheDocument()
 	expect(screen.getByRole('heading', { level: 1, name: 'Desbloquear Testbed' })).toBeInTheDocument()
+})
+
+test('the account step follows the catalogue the consumer loaded', async () => {
+	renderWith(<SetupAccountStep code="K7QW3MZTB2XQ5LJ4N6RAHYCDEF" submitLabel="Testbed" onCreated={vi.fn()} />)
+
+	expect(await screen.findByLabelText('Tu correo electrónico')).toBeInTheDocument()
+	expect(screen.getByLabelText('Contrasena')).toBeInTheDocument()
+})
+
+test('the meter follows the catalogue the consumer loaded', async () => {
+	renderWith(<SetupAccountStep code="K7QW3MZTB2XQ5LJ4N6RAHYCDEF" submitLabel="Testbed" onCreated={vi.fn()} />)
+
+	expect(await screen.findByText('Fuerte')).toBeInTheDocument()
 })
