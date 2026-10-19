@@ -45,6 +45,42 @@
 	text-decoration-color: currentColor;
 }
 
+.gopherium-setup__heading {
+	padding-bottom: 7px;
+	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+}
+
+.gopherium-setup__file {
+	font-size: var(--wpds-typography-font-size-sm);
+}
+
+.gopherium-setup__message {
+	padding: 0.7em 0.6em;
+	border-inline-start: 4px solid var(--wpds-color-stroke-surface-error-strong);
+	background-color: var(--wpds-color-background-surface-error-weak);
+}
+
+.gopherium-setup__row {
+	display: grid;
+	grid-template-columns: 115px minmax(0, 1fr);
+	column-gap: 20px;
+	padding: 10px 0;
+}
+
+.gopherium-setup__step {
+	margin: 20px 0 15px;
+	padding: 0;
+	text-align: start;
+}
+
+@media screen and (max-width: 782px) {
+	.gopherium-setup__row {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: 5px;
+		padding: 20px 0 5px;
+	}
+}
+
 .gopherium-users {
 	width: 100%;
 	border-collapse: collapse;

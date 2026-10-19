@@ -3,11 +3,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { setLocaleData } from '@wordpress/i18n'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 
 import { DOMAIN } from '../src/domain'
 import { seedSession } from '../src/testing'
-import { AccountPanel, LoginScreen, usersNavItem } from '../src/wpds'
+import { AccountPanel, LoginScreen, SetupCodeStep, usersNavItem } from '../src/wpds'
 
 setLocaleData(
 	{
@@ -16,9 +16,15 @@ setLocaleData(
 		Password: ['Contrasena'],
 		'Log in': ['Entrar'],
 		'Log out': ['Salir'],
+		'Unlock %s': ['Desbloquear %s'],
+		'Setup code': ['Codigo'],
 	},
 	DOMAIN,
 )
+
+afterEach(() => {
+	vi.unstubAllGlobals()
+})
 
 /**
  * Renders a tree needing a query client.
@@ -61,4 +67,12 @@ test('the account panel follows the catalogue the consumer loaded', async () => 
 	renderWith(<AccountPanel className="testbed-account" />)
 
 	expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument()
+})
+
+test('the code step follows the catalogue the consumer loaded', () => {
+	vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+	renderWith(<SetupCodeStep brand="Testbed" fileHint="state/setup-code.txt" onUnlocked={vi.fn()} />)
+
+	expect(screen.getByLabelText('Codigo')).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 1, name: 'Desbloquear Testbed' })).toBeInTheDocument()
 })

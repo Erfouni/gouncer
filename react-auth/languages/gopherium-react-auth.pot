@@ -16,6 +16,9 @@ msgstr ""
 msgid "Back to login"
 msgstr ""
 
+msgid "Continue"
+msgstr ""
+
 msgid "Disable"
 msgstr ""
 
@@ -70,6 +73,9 @@ msgstr ""
 msgid "Password"
 msgstr ""
 
+msgid "Please copy the setup code from the file and paste it below."
+msgstr ""
+
 msgid "Send invitation"
 msgstr ""
 
@@ -77,6 +83,9 @@ msgid "Send reset link"
 msgstr ""
 
 msgid "Set password"
+msgstr ""
+
+msgid "Setup code"
 msgstr ""
 
 msgid "Something went wrong."
@@ -91,10 +100,22 @@ msgstr ""
 msgid "The request failed, please try again."
 msgstr ""
 
+msgid "The setup code file cannot be used. Please check it and try again."
+msgstr ""
+
+msgid "The site is starting. Please wait a moment and try again."
+msgstr ""
+
 msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
 msgid "This link is no longer valid. Ask the person who invited you for a new one."
+msgstr ""
+
+msgid "To ensure this site is securely set up by its owner, a setup code has been written to a file on the server."
+msgstr ""
+
+msgid "Too many attempts. Please try again later."
 msgstr ""
 
 msgid "Too many attempts. Please wait a minute and try again."
@@ -103,13 +124,25 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
+msgid "Unlock %s"
+msgstr ""
+
 msgid "Update failed."
 msgstr ""
 
 msgid "Users could not be loaded."
 msgstr ""
 
+msgid "You appear to have already set up this site."
+msgstr ""
+
 msgid "Your password is set. Sign in with it."
+msgstr ""
+
+msgid "Your setup code appears to be invalid. Please copy it again from the setup code file."
+msgstr ""
+
+msgid "Your setup code has expired. A new one is waiting in the setup code file."
 msgstr ""
 
 msgid "invalid invitation details"
