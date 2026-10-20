@@ -4,6 +4,7 @@ package gouncer
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -23,5 +24,7 @@ func cleanName(name string) string {
 			return r
 		}
 	}, name)
-	return strings.TrimSpace(strings.Join(strings.FieldsFunc(cleaned, func(r rune) bool { return r == ' ' }), " "))
+	cleaned = strings.Join(strings.FieldsFunc(cleaned, func(r rune) bool { return r == ' ' }), " ")
+	// Preserve U+0085, a C1 control, even though Unicode classifies it as whitespace.
+	return strings.TrimFunc(cleaned, func(r rune) bool { return r != '\u0085' && unicode.IsSpace(r) })
 }

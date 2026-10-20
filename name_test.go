@@ -34,6 +34,14 @@ func TestAccountConstructorsCleanNames(t *testing.T) {
 				{"  آدا لاولیس  ", "آدا لاولیس"},
 				{"Ada\u007f\u0085\u009b Lovelace", "Ada\u007f\u0085\u009b Lovelace"},
 				{"Ada\u202e\u200b Lovelace", "Ada\u202e\u200b Lovelace"},
+				{"\u0085Ada", "\u0085Ada"},
+				{"Ada\u0085", "Ada\u0085"},
+				{"\u0085", "\u0085"},
+				{" \u00a0\u0085Ada\u0085\u00a0 ", "\u0085Ada\u0085"},
+				{" \u00a0Ada\u00a0 ", "Ada"},
+				{"\u007fAda\u007f", "\u007fAda\u007f"},
+				{"\u0080\u009bAda\u009f", "\u0080\u009bAda\u009f"},
+				{"\u202eAda\u200b", "\u202eAda\u200b"},
 				{strings.Repeat("a", 256) + "\x00", strings.Repeat("a", 256)},
 			} {
 				u, err := create(tc.name)
@@ -52,14 +60,12 @@ func TestAccountConstructorsCleanNames(t *testing.T) {
 func TestNewInvitedUserCleansEveryC0Control(t *testing.T) {
 	t.Parallel()
 
+	spaces := map[rune]string{'\t': " ", '\n': " ", '\r': " "}
 	for control := rune(0); control < 0x20; control++ {
 		t.Run(fmt.Sprintf("U+%04X", control), func(t *testing.T) {
 			t.Parallel()
 
-			want := "AdaLovelace"
-			if control == '\t' || control == '\n' || control == '\r' {
-				want = "Ada Lovelace"
-			}
+			want := "Ada" + spaces[control] + "Lovelace"
 			u, err := gouncer.NewInvitedUser("ada@example.com", "Ada"+string(control)+"Lovelace")
 			if err != nil {
 				t.Fatalf("NewInvitedUser() error = %v, want nil", err)
