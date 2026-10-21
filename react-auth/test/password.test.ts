@@ -26,7 +26,23 @@ test("makes a password of the length asked from WordPress's characters", () => {
 		expect(password).toHaveLength(length)
 		expect(password).toMatch(/^[A-Za-z0-9!@#$%^&*()]+$/)
 	}
-	expect(generatePassword(2.5)).toHaveLength(2)
+})
+
+test('refuses a length that is not a whole number from 1 to 65536, before drawing', () => {
+	const draw = vi.spyOn(crypto, 'getRandomValues')
+
+	for (const length of [Number.NaN, 0, -1, 65537, 2.5]) {
+		expect(() => generatePassword(length), String(length)).toThrow(RangeError)
+		expect(() => generatePassword(length), String(length)).toThrow(
+			`generatedPasswordLength must be a whole number from 1 to 65536, not ${length}`,
+		)
+	}
+	expect(draw).not.toHaveBeenCalled()
+})
+
+test('makes a password at either end of the lengths it takes', () => {
+	expect(generatePassword(1)).toHaveLength(1)
+	expect(generatePassword(65536)).toHaveLength(65536)
 })
 
 test('draws from crypto.getRandomValues', () => {
