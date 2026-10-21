@@ -31,6 +31,38 @@ const client = createAuthQueryClient()
 </QueryClientProvider>
 ```
 
+## Setup wizard rows
+
+`SetupAccountStep` shows the wizard's own rows in `before`, above
+Name, and in `after`, below Your Email. They line up with the step's
+rows only when they use the same hooks:
+
+- `className="gopherium-setup__row"` on each row.
+- `render={<div />}` on `Field.Root`, so the row adds no gap of its
+  own.
+- `className="gopherium-setup__label"` on the row's label.
+- `className="gopherium-setup__checkbox"` on a `CheckboxControl`.
+- `className="gopherium-setup__help"` on a help line under the field.
+
+A checkbox row is a plain `<div className="gopherium-setup__row">`
+with a `Field.VisualLabel`, as the step's Confirm Password row is.
+
+```tsx
+<SetupAccountStep
+  code={code}
+  submitLabel="Install MyApp"
+  onCreated={onCreated}
+  before={
+    <Field.Root className="gopherium-setup__row" render={<div />}>
+      <Field.Label className="gopherium-setup__label">Site Title</Field.Label>
+      <div>
+        <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+      </div>
+    </Field.Root>
+  }
+/>
+```
+
 ## Consumer requirements
 
 - `react` and `@tanstack/react-query` are peer dependencies; the app
