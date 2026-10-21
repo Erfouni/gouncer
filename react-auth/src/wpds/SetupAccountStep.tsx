@@ -404,6 +404,7 @@ function MeterBox({ id, strength }: { id: string; strength: Strength }) {
  * @param password - The password as typed.
  * @param strength - What the meter knows of the password.
  * @param masked - Whether the password is hidden.
+ * @param readOnly - Whether the password stays as sent while the account is created.
  * @param onPasswordChange - Called with the password on every change.
  * @param onToggle - Called when the show or hide button is pressed.
  * @returns The row element.
@@ -412,12 +413,14 @@ function PasswordRow({
 	password,
 	strength,
 	masked,
+	readOnly,
 	onPasswordChange,
 	onToggle,
 }: {
 	password: string
 	strength: Strength
 	masked: boolean
+	readOnly: boolean
 	onPasswordChange: (password: string) => void
 	onToggle: () => void
 }) {
@@ -434,6 +437,7 @@ function PasswordRow({
 							type={masked ? 'password' : 'text'}
 							className={withTone('gopherium-setup__input', toneOf(strength))}
 							value={password}
+							readOnly={readOnly}
 							onChange={(event) => onPasswordChange(event.target.value)}
 							onKeyDown={(event) => {
 								if (isPrintable(event)) {
@@ -468,10 +472,19 @@ function PasswordRow({
 /**
  * Renders the row asking to confirm the use of a weak password.
  * @param checked - Whether the use is confirmed.
+ * @param readOnly - Whether the choice stays as sent while the account is created.
  * @param onCheckedChange - Called with the new choice.
  * @returns The row element.
  */
-function ConfirmRow({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+function ConfirmRow({
+	checked,
+	readOnly,
+	onCheckedChange,
+}: {
+	checked: boolean
+	readOnly: boolean
+	onCheckedChange: (checked: boolean) => void
+}) {
 	return (
 		<div className="gopherium-setup__row">
 			<Field.VisualLabel className="gopherium-setup__label">{__('Confirm Password', DOMAIN)}</Field.VisualLabel>
@@ -480,6 +493,7 @@ function ConfirmRow({ checked, onCheckedChange }: { checked: boolean; onCheckedC
 					className="gopherium-setup__checkbox"
 					label={__('Confirm use of weak password', DOMAIN)}
 					checked={checked}
+					readOnly={readOnly}
 					onCheckedChange={(next) => onCheckedChange(next)}
 				/>
 			</div>
@@ -559,12 +573,16 @@ export function SetupAccountStep({
 	if (account.retry !== undefined) {
 		return <HandoffFailure pending={account.retrying} onRetry={account.retry} />
 	}
+	const canSend = !account.locked && isReady(name, email, held)
 	return (
 		<form
 			className="gopherium-setup"
 			noValidate
 			onSubmit={(event) => {
 				event.preventDefault()
+				if (!canSend) {
+					return
+				}
 				setMasked(true)
 				account.submit()
 			}}
@@ -576,29 +594,32 @@ export function SetupAccountStep({
 				type="text"
 				autoComplete="name"
 				value={name}
+				readOnly={account.locked}
 				onChange={(event) => setName(event.target.value)}
 			/>
 			<PasswordRow
 				password={held.password}
 				strength={held.strength}
 				masked={masked}
+				readOnly={account.locked}
 				onPasswordChange={held.change}
 				onToggle={() => setMasked(!masked)}
 			/>
 			{needsConfirmation(held.strength) ? (
-				<ConfirmRow checked={held.confirmed} onCheckedChange={held.setConfirmed} />
+				<ConfirmRow checked={held.confirmed} readOnly={account.locked} onCheckedChange={held.setConfirmed} />
 			) : null}
 			<TextRow
 				label={__('Your Email', DOMAIN)}
 				type="email"
 				autoComplete="username"
 				value={email}
+				readOnly={account.locked}
 				onChange={(event) => setEmail(event.target.value)}
 				help={__('Double-check your email address before continuing.', DOMAIN)}
 			/>
 			{after}
 			<p className="gopherium-setup__step">
-				<Button type="submit" disabled={account.locked || !isReady(name, email, held)} loading={account.busy}>
+				<Button type="submit" disabled={!canSend} loading={account.busy}>
 					{submitLabel}
 				</Button>
 			</p>

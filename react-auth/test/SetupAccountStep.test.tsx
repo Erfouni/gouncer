@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { configureAuthTransport, resetAuthTransport } from '../src'
@@ -41,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	resetAuthTransport()
+	vi.unstubAllGlobals()
 })
 
 function renderStep(props: Partial<ComponentProps<typeof SetupAccountStep>> = {}) {
@@ -705,6 +707,161 @@ test('keeps a blocked password from going out with Enter', async () => {
 	expect(posts()).toBe(0)
 })
 
+const accountLabels = ['Name', 'Password', 'Your Email']
+
+function accountForm() {
+	return submitButton().closest('form') as HTMLFormElement
+}
+
+function passwordValue() {
+	return (screen.getByLabelText('Password') as HTMLInputElement).value
+}
+
+function waitForPendingWork() {
+	return act(() => new Promise((resolve) => setTimeout(resolve)))
+}
+
+function holdWizardRoute() {
+	let refuse: (error: Error) => void = () => {}
+	const send = vi.fn(
+		() =>
+			new Promise<never>((_, reject) => {
+				refuse = reject
+			}),
+	)
+	return { send, refuse: () => act(async () => refuse(new Error('the wizard route failed'))) }
+}
+
+async function typeIntoEveryField(text: string) {
+	for (const label of accountLabels) {
+		await userEvent.type(screen.getByLabelText(label), text)
+	}
+}
+
+function expectFields(name: string, password: string, email: string) {
+	expect(screen.getByLabelText('Name')).toHaveValue(name)
+	expect(screen.getByLabelText('Password')).toHaveValue(password)
+	expect(screen.getByLabelText('Your Email')).toHaveValue(email)
+}
+
+function expectReadOnly(on: boolean) {
+	for (const label of accountLabels) {
+		const field = screen.getByLabelText(label)
+		expect(field).toBeEnabled()
+		if (on) {
+			expect(field).toHaveAttribute('readonly')
+		} else {
+			expect(field).not.toHaveAttribute('readonly')
+		}
+	}
+}
+
+test('sends nothing when the form itself is submitted before the step is ready', async () => {
+	const send = vi.fn(async () => createdAccount)
+	const held = holdMeter()
+	renderStep({ onSubmit: send })
+	await held.land(fakeMeter({ password1234: 1 }))
+
+	fireEvent.submit(accountForm())
+	await fillAccount()
+	typePassword('password1234')
+	fireEvent.submit(accountForm())
+	await waitForPendingWork()
+
+	expect(send).not.toHaveBeenCalled()
+	expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text')
+})
+
+test('sends the account once when the form itself is submitted again while it is in flight', async () => {
+	const route = holdWizardRoute()
+	await renderReady({ onSubmit: route.send })
+	await fillAccount()
+	await userEvent.click(submitButton())
+	await waitFor(() => expectSubmitOn(false))
+
+	fireEvent.submit(accountForm())
+	await waitForPendingWork()
+
+	expect(route.send).toHaveBeenCalledOnce()
+})
+
+test('keeps every field as sent while the account is in flight, and lets it change after a refusal', async () => {
+	const route = holdWizardRoute()
+	await renderReady({ onSubmit: route.send })
+	await fillAccount()
+	const password = passwordValue()
+	await userEvent.click(submitButton())
+	await waitFor(() => expectSubmitOn(false))
+
+	await typeIntoEveryField('x')
+
+	expectFields('Maria Perez', password, 'maria@example.com')
+	expectReadOnly(true)
+	await userEvent.click(screen.getByRole('button', { name: 'Show password' }))
+	expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text')
+
+	await route.refuse()
+	await waitFor(() => expectSubmitOn(true))
+	await typeIntoEveryField('x')
+
+	expectFields('Maria Perezx', `${password}x`, 'maria@example.comx')
+	expectReadOnly(false)
+})
+
+test('sends nothing more and keeps every field as sent while the wizard takes the account', async () => {
+	const send = vi.fn(async () => createdAccount)
+	const onCreated = vi.fn(() => new Promise<void>(() => {}))
+	await renderReady({ onSubmit: send, onCreated })
+	await fillAccount()
+	const password = passwordValue()
+	await userEvent.click(submitButton())
+	await waitFor(() => expect(onCreated).toHaveBeenCalledOnce())
+	await waitFor(() => expectSubmitOn(false))
+
+	fireEvent.submit(accountForm())
+	await waitForPendingWork()
+	await typeIntoEveryField('x')
+
+	expect(send).toHaveBeenCalledOnce()
+	expectFields('Maria Perez', password, 'maria@example.com')
+	expectReadOnly(true)
+})
+
+test('keeps every field as sent once the wizard has taken the account', async () => {
+	const send = vi.fn(async () => createdAccount)
+	const { onCreated } = await renderReady({ onSubmit: send })
+	await fillAccount()
+	const password = passwordValue()
+	await userEvent.click(submitButton())
+	await waitFor(() => expect(onCreated).toHaveBeenCalledOnce())
+	await waitForPendingWork()
+
+	await typeIntoEveryField('x')
+
+	expectFields('Maria Perez', password, 'maria@example.com')
+	expectReadOnly(true)
+})
+
+test('keeps the weak password choice as sent while the account is in flight', async () => {
+	const route = holdWizardRoute()
+	const held = holdMeter()
+	renderStep({ onSubmit: route.send })
+	await held.land(fakeMeter({ password1234: 1 }))
+	await fillAccount()
+	typePassword('password1234')
+	await userEvent.click(confirmBox() as HTMLElement)
+	await userEvent.click(submitButton())
+	await waitFor(() => expectSubmitOn(false))
+
+	await userEvent.click(confirmBox() as HTMLElement)
+
+	expect(confirmBox()).toBeChecked()
+	await route.refuse()
+	await waitFor(() => expectSubmitOn(true))
+	await userEvent.click(confirmBox() as HTMLElement)
+	expect(confirmBox()).not.toBeChecked()
+})
+
 test("shows WordPress's sentence for an invalid email, above every row", async () => {
 	answerAccount(422, refusal('email_invalid', 'invalid email address'))
 	const { container } = await renderReady({ before: <p>Site Title row</p> })
@@ -1096,4 +1253,21 @@ test('meets every refusal without the optional callbacks', async () => {
 	await new Promise((resolve) => setTimeout(resolve))
 	process.off('unhandledRejection', stray)
 	expect(stray).not.toHaveBeenCalled()
+})
+
+test('renders on a server, where there is no window, document or location', () => {
+	for (const name of ['window', 'document', 'location']) {
+		vi.stubGlobal(name, undefined)
+		Reflect.deleteProperty(globalThis, name)
+	}
+
+	const html = renderToString(
+		<QueryClientProvider client={new QueryClient()}>
+			<SetupAccountStep code={setupCode} submitLabel="Install Testbed" onCreated={vi.fn()} />
+		</QueryClientProvider>,
+	)
+	vi.unstubAllGlobals()
+
+	expect(html).toContain('Install Testbed')
+	expect(html).toContain(emailHelp)
 })
