@@ -141,6 +141,32 @@ test("lays out Name, Password and Your Email in WordPress's order between the wi
 	)
 })
 
+test("draws every row label as WordPress's th label", async () => {
+	const held = holdMeter()
+	renderStep()
+	await held.land(fakeMeter({ password1234: 1 }))
+
+	typePassword('password1234')
+
+	for (const label of ['Name', 'Password', 'Confirm Password', 'Your Email']) {
+		expect(screen.getByText(label)).toHaveClass('gopherium-setup__label')
+	}
+})
+
+test('lays every row out as the plain grid row, with no gap of its own', async () => {
+	const held = holdMeter()
+	const { container } = renderStep()
+	await held.land(fakeMeter({ password1234: 1 }))
+
+	typePassword('password1234')
+
+	const rows = container.querySelectorAll('.gopherium-setup__row')
+	expect(rows).toHaveLength(4)
+	for (const row of rows) {
+		expect(row).not.toHaveAttribute('style')
+	}
+})
+
 test('describes the email field with the line asking to check it', () => {
 	renderStep()
 
@@ -226,6 +252,18 @@ test('hides and shows the password with its toggle', async () => {
 	expect(screen.getByRole('button', { name: 'Hide password' })).toHaveTextContent(/^Hide$/)
 })
 
+test('keeps room in the toggle for both its words, so the field keeps its width', async () => {
+	renderStep()
+	const toggle = screen.getByRole('button', { name: 'Hide password' })
+
+	expect(toggle).toHaveClass('gopherium-setup__toggle')
+	expect(toggle).toHaveAttribute('data-other-word', 'Show')
+
+	await userEvent.click(toggle)
+
+	expect(screen.getByRole('button', { name: 'Show password' })).toHaveAttribute('data-other-word', 'Hide')
+})
+
 test('masks the password when the form is sent, so a password manager offers to save it', async () => {
 	holdAccounts()
 	renderStep()
@@ -262,6 +300,25 @@ test('reads Caps Lock only from printable keys, as WordPress does', async () => 
 	await user.keyboard('{CapsLock}{ArrowLeft}{Control>}k{/Control}{Alt>}k{/Alt}{Meta>}k{/Meta}')
 
 	expect(screen.getByText('Caps lock is on.')).toBeInTheDocument()
+})
+
+test("draws WordPress's arrow before the Caps Lock words, and nothing once it is off", async () => {
+	const user = userEvent.setup()
+	const { container } = renderStep()
+	const region = container.querySelector('[aria-live="assertive"]')
+	await user.click(screen.getByLabelText('Password'))
+
+	await user.keyboard('{CapsLock}k')
+
+	const arrow = region?.querySelector('svg') ?? null
+	expect(arrow).not.toBeNull()
+	expect(arrow?.closest('[aria-hidden="true"]')).not.toBeNull()
+	expect(arrow?.querySelector('path')).toHaveAttribute('d', 'M12 5L19 15H16V19H8V15H5L12 5Z')
+	expectInOrder(arrow as Element, screen.getByText('Caps lock is on.'))
+
+	await user.keyboard('{CapsLock}k')
+
+	expect(region).toBeEmptyDOMElement()
 })
 
 test('puts the Caps Lock line after the meter', async () => {
@@ -359,6 +416,16 @@ test('keeps the submit off for a weak password until its use is confirmed', asyn
 	expectSubmitOn(false)
 	await userEvent.click(confirmBox() as HTMLElement)
 	expectSubmitOn(true)
+})
+
+test('marks the confirm checkbox for the larger box WordPress draws on phones', async () => {
+	const held = holdMeter()
+	renderStep()
+	await held.land(fakeMeter({ password1234: 1 }))
+
+	typePassword('password1234')
+
+	expect(confirmBox()?.closest('.gopherium-setup__checkbox')).not.toBeNull()
 })
 
 test('asks no confirmation for a medium or strong password', async () => {

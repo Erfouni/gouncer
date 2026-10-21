@@ -23,6 +23,16 @@ const GENERATED_PASSWORD_LENGTH = 18
 /** The word the meter box holds for an empty password. */
 const NO_WORD = '\u00a0'
 
+/** The arrow drawn before the Caps Lock words. */
+const CAPS_ARROW = (
+	<span aria-hidden="true" className="gopherium-setup__caps-icon">
+		<svg viewBox="0 0 24 26" fill="currentColor" stroke="currentColor" strokeWidth="0.5">
+			<path d="M12 5L19 15H16V19H8V15H5L12 5Z" />
+			<rect x="8" y="21" width="8" height="1.5" rx="0.75" />
+		</svg>
+	</span>
+)
+
 /** What the meter knows of the password: nothing yet, an empty field, or a score from -1 to 4. */
 type Strength = number | 'empty' | undefined
 
@@ -342,8 +352,8 @@ function RefusalMessage({ error, onError }: { error: Error | null; onError?: Err
  */
 function TextRow({ label, help, ...field }: { label: string; help?: string } & ComponentProps<typeof Input>) {
 	return (
-		<Field.Root className="gopherium-setup__row">
-			<Field.Label>{label}</Field.Label>
+		<Field.Root className="gopherium-setup__row" render={<div />}>
+			<Field.Label className="gopherium-setup__label">{label}</Field.Label>
 			<div>
 				<Input {...field} />
 				{help === undefined ? null : <Field.Description className="gopherium-setup__help">{help}</Field.Description>}
@@ -359,14 +369,18 @@ function TextRow({ label, help, ...field }: { label: string; help?: string } & C
  * @returns The toggle element.
  */
 function MaskToggle({ masked, onToggle }: { masked: boolean; onToggle: () => void }) {
+	const show = __('Show', DOMAIN)
+	const hide = __('Hide', DOMAIN)
 	return (
 		<Button
 			type="button"
 			variant="outline"
+			className="gopherium-setup__toggle"
+			data-other-word={masked ? hide : show}
 			aria-label={masked ? __('Show password', DOMAIN) : __('Hide password', DOMAIN)}
 			onClick={onToggle}
 		>
-			{masked ? __('Show', DOMAIN) : __('Hide', DOMAIN)}
+			{masked ? show : hide}
 		</Button>
 	)
 }
@@ -411,8 +425,8 @@ function PasswordRow({
 	const meterId = useId()
 	const helpId = useId()
 	return (
-		<Field.Root className="gopherium-setup__row">
-			<Field.Label>{__('Password', DOMAIN)}</Field.Label>
+		<Field.Root className="gopherium-setup__row" render={<div />}>
+			<Field.Label className="gopherium-setup__label">{__('Password', DOMAIN)}</Field.Label>
 			<div>
 				<div className="gopherium-setup__password">
 					<div className="gopherium-setup__password-field">
@@ -432,7 +446,12 @@ function PasswordRow({
 						/>
 						<MeterBox id={meterId} strength={strength} />
 						<div aria-live="assertive" className="gopherium-setup__caps">
-							{capsLock ? __('Caps lock is on.', DOMAIN) : null}
+							{capsLock ? (
+								<>
+									{CAPS_ARROW}
+									<span className="gopherium-setup__caps-text">{__('Caps lock is on.', DOMAIN)}</span>
+								</>
+							) : null}
 						</div>
 					</div>
 					<MaskToggle masked={masked} onToggle={onToggle} />
@@ -455,9 +474,10 @@ function PasswordRow({
 function ConfirmRow({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) {
 	return (
 		<div className="gopherium-setup__row">
-			<Field.VisualLabel>{__('Confirm Password', DOMAIN)}</Field.VisualLabel>
+			<Field.VisualLabel className="gopherium-setup__label">{__('Confirm Password', DOMAIN)}</Field.VisualLabel>
 			<div>
 				<CheckboxControl
+					className="gopherium-setup__checkbox"
 					label={__('Confirm use of weak password', DOMAIN)}
 					checked={checked}
 					onCheckedChange={(next) => onCheckedChange(next)}

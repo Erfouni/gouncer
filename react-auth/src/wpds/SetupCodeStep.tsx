@@ -82,21 +82,23 @@ export function SetupCodeStep({
 			<Text variant="heading-lg" render={<h1 className="gopherium-setup__heading" />}>
 				{sprintf(__('Unlock %s', DOMAIN), brand)}
 			</Text>
-			<Text render={<p />}>
+			<Text render={<p className="gopherium-setup__text" />}>
 				{__(
 					'To ensure this site is securely set up by its owner, a setup code has been written to a file on the server.',
 					DOMAIN,
 				)}
 			</Text>
 			<Text render={<div id={hintId} className="gopherium-setup__file" />}>{fileHint}</Text>
-			<Text render={<p />}>{__('Please copy the setup code from the file and paste it below.', DOMAIN)}</Text>
+			<Text render={<p className="gopherium-setup__text" />}>
+				{__('Please copy the setup code from the file and paste it below.', DOMAIN)}
+			</Text>
 			{message === undefined ? null : (
 				<Text role="alert" id={alertId} render={<p className="gopherium-setup__message" />}>
 					{message}
 				</Text>
 			)}
-			<Field.Root className="gopherium-setup__row">
-				<Field.Label>{__('Setup code', DOMAIN)}</Field.Label>
+			<Field.Root className="gopherium-setup__row" render={<div />}>
+				<Field.Label className="gopherium-setup__label">{__('Setup code', DOMAIN)}</Field.Label>
 				<div>
 					<Input
 						type="text"

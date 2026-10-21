@@ -109,6 +109,27 @@ test("follows Jenkins' order from the heading to Continue", () => {
 	)
 })
 
+test("draws the row label as WordPress's th label", () => {
+	renderStep()
+
+	expect(screen.getByText('Setup code')).toHaveClass('gopherium-setup__label')
+})
+
+test('lays the row out as the plain grid row, with no gap of its own', () => {
+	const { container } = renderStep()
+
+	const row = container.querySelector('.gopherium-setup__row')
+	expect(row).not.toBeNull()
+	expect(row).not.toHaveAttribute('style')
+})
+
+test("gives the intro and the copy line WordPress's paragraph margins", () => {
+	renderStep()
+
+	expect(screen.getByText(intro)).toHaveClass('gopherium-setup__text')
+	expect(screen.getByText(copyLine)).toHaveClass('gopherium-setup__text')
+})
+
 test("puts a refusal above the field in WordPress's message box", async () => {
 	server.use(codeAnswer(401, invalidBody))
 	renderStep()
