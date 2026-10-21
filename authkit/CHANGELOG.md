@@ -7,6 +7,12 @@ minor releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- The module needs Go 1.27.3.
+
 ## [0.23.0] - 2026-10-18
 
 ### Added
