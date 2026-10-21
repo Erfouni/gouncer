@@ -5,6 +5,12 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/). While
 at v0.x, minor releases may contain breaking changes.
 
+## [Unreleased]
+
+### Changed
+
+- The module needs Go 1.27.3.
+
 ## [0.5.0] - 2026-10-13
 
 ### Added
