@@ -8,6 +8,12 @@ releases may contain breaking changes.
 
 Releases of this module are tagged `authkit/sqlite/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- The module needs Go 1.27.3.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added
