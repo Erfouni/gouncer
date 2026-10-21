@@ -4,7 +4,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 "X-Domain: gopherium-react-auth\n"
 "Language: es-ES\n"
 
@@ -16,6 +16,18 @@ msgstr "Activo"
 
 msgid "Back to login"
 msgstr "Volver al inicio de sesión"
+
+msgid "Caps lock is on."
+msgstr "El bloqueo de mayúsculas está activado."
+
+msgid "Confirm Password"
+msgstr "Confirma la contraseña"
+
+msgid "Confirm use of weak password"
+msgstr "Confirma el uso de una contraseña débil."
+
+msgid "Continue"
+msgstr "Continuar"
 
 msgid "Disable"
 msgstr "Desactivar"
@@ -29,6 +41,9 @@ msgstr "Desactivado"
 msgid "Done"
 msgstr "Hecho"
 
+msgid "Double-check your email address before continuing."
+msgstr "Comprueba bien tu dirección de correo electrónico antes de continuar."
+
 msgid "Enable"
 msgstr "Activar"
 
@@ -38,8 +53,24 @@ msgstr "Activar a %s"
 msgid "Go to login"
 msgstr "Ir al inicio de sesión"
 
+msgid "Hide"
+msgstr "Ocultar"
+
+msgid "Hide password"
+msgstr "Ocultar la contraseña"
+
+#, fuzzy
+msgid "Hint: The password should be at least %d character long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgid_plural "Hint: The password should be at least %d characters long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgstr[0] "Sugerencia: La contraseña debe ser de al menos %d carácter. Para hacerla más fuerte usa mayúsculas y minúsculas, números y símbolos como ! \" ? $ %% ^ y )."
+msgstr[1] "Sugerencia: La contraseña debe ser de al menos %d de caracteres. Para hacerla más fuerte usa mayúsculas y minúsculas, números y símbolos como ! \" ? $ %% ^ y )."
+msgstr[2] "Sugerencia: La contraseña debe ser de al menos %d caracteres. Para hacerla más fuerte usa mayúsculas y minúsculas, números y símbolos como ! \" ? $ %% ^ y )."
+
 msgid "If that address has an account, a reset link is on its way."
 msgstr "Si esa dirección tiene una cuenta, le llegará un enlace para restablecerla."
+
+msgid "Important:"
+msgstr "Importante:"
 
 msgid "Invalid email or password."
 msgstr "Correo o contraseña no válidos."
@@ -71,6 +102,14 @@ msgstr "No hay servidor de correo configurado. Entrega el enlace de activación 
 msgid "Password"
 msgstr "Contraseña"
 
+#, fuzzy
+msgid "Please copy the setup code from the file and paste it below."
+msgstr "Por favor, copia el código de configuración del archivo y pégalo abajo."
+
+#, fuzzy
+msgid "Please provide a name."
+msgstr "Por favor, facilita un nombre."
+
 msgid "Send invitation"
 msgstr "Enviar invitación"
 
@@ -80,8 +119,26 @@ msgstr "Enviar enlace de restablecimiento"
 msgid "Set password"
 msgstr "Guardar contraseña"
 
+#, fuzzy
+msgid "Setup code"
+msgstr "Código de configuración"
+
+msgid "Show"
+msgstr "Mostrar"
+
+msgid "Show password"
+msgstr "Mostrar la contraseña"
+
 msgid "Something went wrong."
 msgstr "Algo ha ido mal."
+
+#, fuzzy
+msgid "Sorry, that is not a valid email address. Email addresses look like <code>username@example.com</code>."
+msgstr "Lo siento, esa no es una dirección de correo electrónico válida. Las direcciones de correo electrónico deben parecerse a <code>usuario@example.com</code>."
+
+#, fuzzy
+msgid "The account could not be created, please try again."
+msgstr "No se pudo crear la cuenta, inténtalo de nuevo."
 
 msgid "The invitation could not be sent."
 msgstr "No se pudo enviar la invitación."
@@ -92,11 +149,35 @@ msgstr "No se pudo guardar la contraseña, inténtalo de nuevo."
 msgid "The request failed, please try again."
 msgstr "No se pudo completar la petición, inténtalo de nuevo."
 
+#, fuzzy
+msgid "The setup code file cannot be used. Please check it and try again."
+msgstr "No se puede usar el archivo del código de configuración. Por favor, revísalo e inténtalo de nuevo."
+
+#, fuzzy
+msgid "The site is starting. Please wait a moment and try again."
+msgstr "El sitio se está iniciando. Por favor, espera un momento e inténtalo de nuevo."
+
 msgid "This link is no longer valid. Ask for a new one."
 msgstr "Este enlace ya no es válido. Pide uno nuevo."
 
 msgid "This link is no longer valid. Ask the person who invited you for a new one."
 msgstr "Este enlace ya no es válido. Pide uno nuevo a quien te invitó."
+
+#, fuzzy
+msgid "This name is too long."
+msgstr "Este nombre es demasiado largo."
+
+#, fuzzy
+msgid "This password is too long."
+msgstr "Esta contraseña es demasiado larga."
+
+#, fuzzy
+msgid "To ensure this site is securely set up by its owner, a setup code has been written to a file on the server."
+msgstr "Para garantizar que la persona propietaria configure este sitio de forma segura, se ha escrito un código de configuración en un archivo del servidor."
+
+#, fuzzy
+msgid "Too many attempts. Please try again later."
+msgstr "Demasiados intentos. Por favor, inténtalo de nuevo más tarde."
 
 msgid "Too many attempts. Please wait a minute and try again."
 msgstr "Demasiados intentos. Espera un minuto e inténtalo de nuevo."
@@ -104,14 +185,36 @@ msgstr "Demasiados intentos. Espera un minuto e inténtalo de nuevo."
 msgid "Try again"
 msgstr "Inténtalo de nuevo"
 
+#, fuzzy
+msgid "Unlock %s"
+msgstr "Desbloquear %s"
+
 msgid "Update failed."
 msgstr "No se pudo actualizar."
 
 msgid "Users could not be loaded."
 msgstr "No se pudieron cargar los usuarios."
 
+#, fuzzy
+msgid "You appear to have already set up this site."
+msgstr "Parece que ya has configurado este sitio."
+
+msgid "You will need this password to log in. Please store it in a secure location."
+msgstr "Necesitas esta contraseña para acceder. Por favor, guárdala en un lugar seguro."
+
+msgid "Your Email"
+msgstr "Tu correo electrónico"
+
 msgid "Your password is set. Sign in with it."
 msgstr "Tu contraseña está guardada. Inicia sesión con ella."
+
+#, fuzzy
+msgid "Your setup code appears to be invalid. Please copy it again from the setup code file."
+msgstr "Tu código de configuración parece que no es válido. Por favor, cópialo de nuevo del archivo del código de configuración."
+
+#, fuzzy
+msgid "Your setup code has expired. A new one is waiting in the setup code file."
+msgstr "Tu código de configuración ha caducado. Hay uno nuevo esperando en el archivo del código de configuración."
 
 msgid "invalid invitation details"
 msgstr "datos de invitación no válidos"
@@ -164,3 +267,23 @@ msgstr "Nuevo usuario"
 msgctxt "page heading"
 msgid "Users"
 msgstr "Usuarios"
+
+msgctxt "password strength"
+msgid "Medium"
+msgstr "Medio"
+
+msgctxt "password strength"
+msgid "Password strength unknown"
+msgstr "Fortaleza de la contraseña desconocida"
+
+msgctxt "password strength"
+msgid "Strong"
+msgstr "Fuerte"
+
+msgctxt "password strength"
+msgid "Very weak"
+msgstr "Muy débil"
+
+msgctxt "password strength"
+msgid "Weak"
+msgstr "Débil"

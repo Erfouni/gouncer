@@ -45,6 +45,211 @@
 	text-decoration-color: currentColor;
 }
 
+.gopherium-setup .gopherium-setup__heading {
+	margin: 0 0 0.67em;
+	padding-bottom: 7px;
+	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+	font-size: 24px;
+	font-weight: var(--wpds-typography-font-weight-default);
+	line-height: var(--wpds-typography-line-height-xl);
+}
+
+.gopherium-setup .gopherium-setup__text,
+.gopherium-setup .gopherium-setup__file,
+.gopherium-setup .gopherium-setup__message {
+	margin: 14px 0;
+}
+
+.gopherium-setup .gopherium-setup__text,
+.gopherium-setup .gopherium-setup__message,
+.gopherium-setup .gopherium-setup__help {
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.gopherium-setup__file {
+	font-size: var(--wpds-typography-font-size-sm);
+	overflow-wrap: anywhere;
+}
+
+.gopherium-setup__message {
+	padding: 0.7em 0.6em;
+	border-inline-start: 4px solid var(--wpds-color-stroke-surface-error-strong);
+	background-color: var(--wpds-color-background-surface-error-weak);
+}
+
+.gopherium-setup__row {
+	display: grid;
+	grid-template-columns: 115px minmax(0, 1fr);
+	column-gap: 20px;
+	padding: 10px 20px 10px 0;
+}
+
+.gopherium-setup__label {
+	font-size: 14px;
+	font-weight: var(--wpds-typography-font-weight-emphasis);
+	line-height: 1.3;
+	text-transform: none;
+}
+
+.gopherium-setup__row input {
+	font-size: var(--wpds-typography-font-size-lg);
+}
+
+.gopherium-setup .gopherium-setup__help {
+	margin: 4px 0 0;
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.gopherium-setup__checkbox {
+	--_wp-ui-checkbox-control-label-line-height: max(var(--_wp-ui-checkbox-control-checkbox-height), 14px * 1.3);
+}
+
+.gopherium-setup__checkbox label {
+	font-size: 14px;
+}
+
+.gopherium-setup__checkbox [role="checkbox"] > svg {
+	width: calc(100% + 2 * var(--wpds-border-width-xs));
+	height: calc(100% + 2 * var(--wpds-border-width-xs));
+}
+
+.gopherium-setup__password {
+	display: flex;
+	column-gap: 4px;
+}
+
+.gopherium-setup__password-field {
+	width: 100%;
+	min-width: 0;
+}
+
+.gopherium-setup__toggle {
+	flex: none;
+	flex-direction: column;
+	align-self: flex-start;
+	gap: 0;
+	white-space: nowrap;
+}
+
+.gopherium-setup__toggle::after {
+	content: attr(data-other-word);
+	height: 0;
+	overflow: hidden;
+	visibility: hidden;
+}
+
+.gopherium-setup__meter {
+	box-sizing: border-box;
+	width: 100%;
+	margin: -1px 0 5px;
+	padding: 3px 5px;
+	border: var(--wpds-border-width-xs) solid var(--wpds-color-stroke-surface-neutral);
+	border-radius: var(--wpds-border-radius-sm);
+	color: var(--wpds-color-foreground-content-neutral);
+	font-size: 14px;
+	font-weight: normal;
+	line-height: 1.3;
+	text-align: center;
+	opacity: 0;
+}
+
+.gopherium-setup__meter--short {
+	border-color: var(--wpds-color-stroke-surface-error-strong);
+	background-color: var(--wpds-color-background-surface-error);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--bad {
+	border-color: var(--wpds-color-stroke-surface-error);
+	background-color: var(--wpds-color-background-surface-error-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--good {
+	border-color: var(--wpds-color-stroke-surface-caution);
+	background-color: var(--wpds-color-background-surface-caution-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__meter--strong {
+	border-color: var(--wpds-color-stroke-surface-success);
+	background-color: var(--wpds-color-background-surface-success-weak);
+	opacity: 1;
+}
+
+.gopherium-setup__input input {
+	font-family: var(--wpds-typography-font-family-mono);
+}
+
+.gopherium-setup__input--short:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-error-strong);
+}
+
+.gopherium-setup__input--bad:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-error);
+}
+
+.gopherium-setup__input--good:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-caution);
+}
+
+.gopherium-setup__input--strong:not(:focus-within) {
+	border-color: var(--wpds-color-stroke-surface-success);
+}
+
+.gopherium-setup__caps:empty {
+	display: none;
+}
+
+.gopherium-setup__caps {
+	position: relative;
+	top: -8px;
+	display: flex;
+	align-items: flex-start;
+	padding: 6px 10px;
+	border: var(--wpds-border-width-xs) solid var(--wpds-color-stroke-surface-caution);
+	background-color: var(--wpds-color-background-surface-caution-weak);
+	color: var(--wpds-color-foreground-content-neutral);
+	font-size: 14px;
+	line-height: 1.3;
+}
+
+.gopherium-setup__caps-icon {
+	display: flex;
+	flex: none;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-inline-end: 5px;
+}
+
+.gopherium-setup__step {
+	margin: 20px 0 15px;
+	padding: 0;
+	text-align: start;
+}
+
+@media screen and (max-width: 782px) {
+	.gopherium-setup__row {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: 5px;
+		padding: 20px 0 5px;
+	}
+
+	.gopherium-setup__row input {
+		font-size: 16px;
+	}
+
+	.gopherium-setup__meter {
+		padding: 8px;
+	}
+
+	.gopherium-setup__checkbox {
+		--_wp-ui-checkbox-control-checkbox-height: 25px;
+	}
+}
+
 .gopherium-users {
 	width: 100%;
 	border-collapse: collapse;

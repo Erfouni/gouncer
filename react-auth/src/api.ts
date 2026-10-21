@@ -40,27 +40,42 @@ export class RateLimitedError extends Error {}
  */
 export class InvalidTokenError extends Error {}
 
-/**
- * ValidationError is thrown when the backend rejects submitted details;
- * its message is the backend's human-readable explanation.
- */
-export class ValidationError extends Error {}
+/** ValidationError is thrown when the backend rejects submitted details, with its message, code and meta. */
+export class ValidationError extends Error {
+	readonly code?: string
+	readonly meta?: Record<string, unknown>
 
-const refusalSchema = z.object({ error: z.string(), code: z.string().optional() })
+	/**
+	 * Creates the error from the backend's refusal.
+	 * @param message - The backend's human-readable explanation.
+	 * @param refusal - The refusal's code and meta, when the backend sent them.
+	 */
+	constructor(message: string, refusal: { code?: string; meta?: Record<string, unknown> } = {}) {
+		super(message)
+		this.code = refusal.code
+		this.meta = refusal.meta
+	}
+}
+
+const refusalSchema = z.object({
+	error: z.string(),
+	code: z.string().optional(),
+	meta: z.record(z.string(), z.unknown()).optional(),
+})
 
 /**
  * Reads the backend's refusal from a failed response body.
  * @param response - The failed HTTP response.
  * @param fallback - The message to use when the body is unreadable.
- * @returns The refusal message and optional code.
+ * @returns The refusal message with its optional code and meta.
  */
-async function refusalOf(
+export async function refusalOf(
 	response: Response,
 	fallback: string,
-): Promise<{ message: string; code?: string }> {
+): Promise<{ message: string; code?: string; meta?: Record<string, unknown> }> {
 	try {
 		const held = refusalSchema.parse(await response.json())
-		return { message: held.error, code: held.code }
+		return { message: held.error, code: held.code, meta: held.meta }
 	} catch {
 		return { message: fallback }
 	}

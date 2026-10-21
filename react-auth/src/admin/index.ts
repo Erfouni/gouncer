@@ -3,22 +3,15 @@
 import { __ } from '@wordpress/i18n'
 import { z } from 'zod'
 
+import { accountSchema } from '../account.js'
+import type { Account as User } from '../account.js'
 import { RateLimitedError, UnauthorizedError, ValidationError } from '../api.js'
 import { DOMAIN } from '../domain.js'
 import { resolveTransport } from '../transport.js'
 
 export const usersQueryKey = ['users'] as const
 
-const userSchema = z.object({
-	id: z.string(),
-	email: z.string(),
-	name: z.string(),
-	disabled: z.boolean(),
-	role: z.string().default(''),
-	created_at: z.coerce.date(),
-})
-
-export type User = z.infer<typeof userSchema>
+export type { Account as User } from '../account.js'
 
 export interface NewUser {
 	email: string
@@ -162,7 +155,7 @@ async function restFetchUsers(signal?: AbortSignal): Promise<User[]> {
 	if (!response.ok) {
 		throw new Error(`listing users failed with status ${response.status}`)
 	}
-	return z.array(userSchema).parse(await response.json())
+	return z.array(accountSchema).parse(await response.json())
 }
 
 /**
@@ -185,7 +178,7 @@ async function restCreateUser(input: NewUser): Promise<User> {
 	if (!response.ok) {
 		throw await writeError(response, __('invalid user details', DOMAIN), 'creating user')
 	}
-	return userSchema.parse(await response.json())
+	return accountSchema.parse(await response.json())
 }
 
 /**

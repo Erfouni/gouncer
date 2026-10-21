@@ -10,6 +10,22 @@ Releases are tagged `react-auth@X.Y.Z` and publish to npm from CI. The
 npm-style tag stays invisible to the Go toolchain, unlike a
 `react-auth/vX.Y.Z` tag naming the directory's stub module.
 
+## [Unreleased]
+
+### Added
+
+- `SetupCodeStep` in `/wpds`, the screen that asks for the setup code, modelled on Jenkins' "Unlock Jenkins", with `fileHint` for where the application keeps the code file.
+- `SetupAccountStep` in `/wpds`, the account rows of WordPress's installer (Name, Password, Your Email), with WordPress's password strength meter and its "Confirm use of weak password" row.
+- The meter loads zxcvbn 4.4.1, WordPress's version, on demand as its own chunk.
+- `isSetupOpen`, `checkSetupCode` and `createFirstAccount`, with `SetupCodeError`, `SetupClosedError` and `SiteStartingError`. A `ValidationError` from `createFirstAccount` carries the server's `code` and `meta`.
+- The `FirstAccount` and `Account` types on the package entry point.
+- The testing handlers `setupStatus`, `setupCodeOk`, `setupCodeRefused`, `setupCodeClosed`, `setupCodeRateLimited`, `setupCodeStarting`, `firstAccountOk`, `firstAccountCodeRefused`, `firstAccountClosed`, `firstAccountRateLimited` and `firstAccountStarting`, with `createdAccount`, the account `firstAccountOk` answers by default.
+
+### Changed
+
+- **Breaking.** `AuthTransport` gains `isSetupOpen`, `checkSetupCode` and `createFirstAccount`. A partial transport given to `configureAuthTransport` keeps working.
+- The Spanish catalogue declares the three CLDR plural forms.
+
 ## [0.13.0] - 2026-10-16
 
 ### Changed

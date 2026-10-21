@@ -16,6 +16,18 @@ msgstr ""
 msgid "Back to login"
 msgstr ""
 
+msgid "Caps lock is on."
+msgstr ""
+
+msgid "Confirm Password"
+msgstr ""
+
+msgid "Confirm use of weak password"
+msgstr ""
+
+msgid "Continue"
+msgstr ""
+
 msgid "Disable"
 msgstr ""
 
@@ -28,6 +40,9 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
+msgid "Double-check your email address before continuing."
+msgstr ""
+
 msgid "Enable"
 msgstr ""
 
@@ -37,7 +52,21 @@ msgstr ""
 msgid "Go to login"
 msgstr ""
 
+msgid "Hide"
+msgstr ""
+
+msgid "Hide password"
+msgstr ""
+
+msgid "Hint: The password should be at least %d character long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgid_plural "Hint: The password should be at least %d characters long. To make it stronger, use upper and lower case letters, numbers, and symbols like ! \" ? $ %% ^ & )."
+msgstr[0] ""
+msgstr[1] ""
+
 msgid "If that address has an account, a reset link is on its way."
+msgstr ""
+
+msgid "Important:"
 msgstr ""
 
 msgid "Invalid email or password."
@@ -70,6 +99,12 @@ msgstr ""
 msgid "Password"
 msgstr ""
 
+msgid "Please copy the setup code from the file and paste it below."
+msgstr ""
+
+msgid "Please provide a name."
+msgstr ""
+
 msgid "Send invitation"
 msgstr ""
 
@@ -79,7 +114,22 @@ msgstr ""
 msgid "Set password"
 msgstr ""
 
+msgid "Setup code"
+msgstr ""
+
+msgid "Show"
+msgstr ""
+
+msgid "Show password"
+msgstr ""
+
 msgid "Something went wrong."
+msgstr ""
+
+msgid "Sorry, that is not a valid email address. Email addresses look like <code>username@example.com</code>."
+msgstr ""
+
+msgid "The account could not be created, please try again."
 msgstr ""
 
 msgid "The invitation could not be sent."
@@ -91,10 +141,28 @@ msgstr ""
 msgid "The request failed, please try again."
 msgstr ""
 
+msgid "The setup code file cannot be used. Please check it and try again."
+msgstr ""
+
+msgid "The site is starting. Please wait a moment and try again."
+msgstr ""
+
 msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
 msgid "This link is no longer valid. Ask the person who invited you for a new one."
+msgstr ""
+
+msgid "This name is too long."
+msgstr ""
+
+msgid "This password is too long."
+msgstr ""
+
+msgid "To ensure this site is securely set up by its owner, a setup code has been written to a file on the server."
+msgstr ""
+
+msgid "Too many attempts. Please try again later."
 msgstr ""
 
 msgid "Too many attempts. Please wait a minute and try again."
@@ -103,13 +171,31 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
+msgid "Unlock %s"
+msgstr ""
+
 msgid "Update failed."
 msgstr ""
 
 msgid "Users could not be loaded."
 msgstr ""
 
+msgid "You appear to have already set up this site."
+msgstr ""
+
+msgid "You will need this password to log in. Please store it in a secure location."
+msgstr ""
+
+msgid "Your Email"
+msgstr ""
+
 msgid "Your password is set. Sign in with it."
+msgstr ""
+
+msgid "Your setup code appears to be invalid. Please copy it again from the setup code file."
+msgstr ""
+
+msgid "Your setup code has expired. A new one is waiting in the setup code file."
 msgstr ""
 
 msgid "invalid invitation details"
@@ -162,4 +248,24 @@ msgstr ""
 
 msgctxt "page heading"
 msgid "Users"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Medium"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Password strength unknown"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Strong"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Very weak"
+msgstr ""
+
+msgctxt "password strength"
+msgid "Weak"
 msgstr ""
