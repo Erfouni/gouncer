@@ -3,7 +3,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { __, sprintf } from '@wordpress/i18n'
 import { Button, Field, Input, Text } from '@wordpress/ui'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { DOMAIN } from '../domain.js'
@@ -33,6 +33,14 @@ function stepMessage(
 }
 
 /**
+ * Reports whether the field takes focus once it is in the page, which it does unless the pointer is coarse.
+ * @returns False on a touch screen, true elsewhere.
+ */
+function focusesOnMount(): boolean {
+	return window.matchMedia?.('(pointer: coarse)').matches !== true
+}
+
+/**
  * Renders the step asking for the one-time setup code and hands the accepted code upward.
  * @param brand - The product name in the heading.
  * @param fileHint - The application's words for where its code file lives.
@@ -55,9 +63,14 @@ export function SetupCodeStep({
 	refused?: SetupCodeError['reason']
 }) {
 	const [code, setCode] = useState('')
-	const [focusOnMount] = useState(() => window.matchMedia?.('(pointer: coarse)').matches !== true)
+	const field = useRef<HTMLInputElement>(null)
 	const hintId = useId()
 	const alertId = useId()
+	useEffect(() => {
+		if (focusesOnMount()) {
+			field.current?.focus()
+		}
+	}, [])
 	const attempt = useMutation({
 		mutationFn: async () => {
 			await checkSetupCode(code)
@@ -70,12 +83,16 @@ export function SetupCodeStep({
 		},
 	})
 	const message = stepMessage(attempt.error, attempt.isIdle, refused)
+	const canCheck = code.trim() !== '' && !attempt.isPending
 
 	return (
 		<form
 			className="gopherium-setup"
 			onSubmit={(event) => {
 				event.preventDefault()
+				if (!canCheck) {
+					return
+				}
 				attempt.mutate()
 			}}
 		>
@@ -101,18 +118,18 @@ export function SetupCodeStep({
 				<Field.Label className="gopherium-setup__label">{__('Setup code', DOMAIN)}</Field.Label>
 				<div>
 					<Input
+						ref={field}
 						type="text"
 						value={code}
 						onChange={(event) => setCode(event.target.value)}
 						autoComplete="off"
 						spellCheck={false}
-						autoFocus={focusOnMount}
 						aria-describedby={message === undefined ? hintId : `${alertId} ${hintId}`}
 					/>
 				</div>
 			</Field.Root>
 			<p className="gopherium-setup__step">
-				<Button type="submit" disabled={code.trim() === '' || attempt.isPending} loading={attempt.isPending}>
+				<Button type="submit" disabled={!canCheck} loading={attempt.isPending}>
 					{__('Continue', DOMAIN)}
 				</Button>
 			</p>

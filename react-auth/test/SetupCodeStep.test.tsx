@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { configureAuthTransport, resetAuthTransport } from '../src'
 import { HttpResponse, http, server } from '../src/testing'
 import { SetupCodeStep } from '../src/wpds'
 import { busyClasses } from './busy'
@@ -44,6 +46,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.unstubAllGlobals()
+	resetAuthTransport()
 })
 
 function renderStep(
@@ -207,6 +210,42 @@ test('locks Continue while the check is in flight', async () => {
 	expect(posts).toBe(1)
 })
 
+function codeForm() {
+	return screen.getByRole('button', { name: 'Continue' }).closest('form') as HTMLFormElement
+}
+
+function waitForPendingWork() {
+	return act(() => new Promise((resolve) => setTimeout(resolve)))
+}
+
+test('checks nothing when the form itself is submitted with a blank code', async () => {
+	const check = vi.fn(async () => {})
+	configureAuthTransport({ checkSetupCode: check })
+	const { onUnlocked } = renderStep()
+
+	fireEvent.submit(codeForm())
+	await userEvent.type(screen.getByLabelText('Setup code'), '   ')
+	fireEvent.submit(codeForm())
+	await waitForPendingWork()
+
+	expect(check).not.toHaveBeenCalled()
+	expect(onUnlocked).not.toHaveBeenCalled()
+})
+
+test('checks the code once when the form itself is submitted again while the check is in flight', async () => {
+	const check = vi.fn(() => new Promise<never>(() => {}))
+	configureAuthTransport({ checkSetupCode: check })
+	renderStep()
+	await submitCode(pastedCode)
+	const submit = screen.getByRole('button', { name: 'Continue' })
+	await waitFor(() => expect(submit).toHaveAttribute('aria-disabled', 'true'))
+
+	fireEvent.submit(codeForm())
+	await waitForPendingWork()
+
+	expect(check).toHaveBeenCalledOnce()
+})
+
 test('posts the code exactly as typed', async () => {
 	let body: unknown
 	server.use(
@@ -368,4 +407,31 @@ test('takes focus where the window cannot tell the pointer', () => {
 	renderStep()
 
 	expect(screen.getByLabelText('Setup code')).toHaveFocus()
+})
+
+test('takes focus only when it appears, never again when a refusal comes back', async () => {
+	server.use(codeAnswer(401, invalidBody))
+	renderStep()
+
+	await submitCode(pastedCode)
+
+	await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(invalidSentence))
+	expect(screen.getByRole('button', { name: 'Continue' })).toHaveFocus()
+})
+
+test('renders on a server, where there is no window, with no autofocus for a phone to obey', () => {
+	vi.stubGlobal('window', undefined)
+	Reflect.deleteProperty(globalThis, 'window')
+	expect('window' in globalThis).toBe(false)
+
+	const html = renderToString(
+		<QueryClientProvider client={new QueryClient()}>
+			<SetupCodeStep brand="Testbed" fileHint={fileHint} onUnlocked={vi.fn()} />
+		</QueryClientProvider>,
+	)
+	vi.unstubAllGlobals()
+
+	expect(html).toContain('Unlock Testbed')
+	expect(html).toContain(hintPath)
+	expect(html).not.toMatch(/autofocus/i)
 })
