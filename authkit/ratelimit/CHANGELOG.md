@@ -12,7 +12,7 @@ Releases of this module are tagged `authkit/ratelimit/vX.Y.Z`.
 
 ### Changed
 
-- The module needs Go 1.27.2.
+- The module needs Go 1.27.3.
 
 ## [0.3.1] - 2026-10-08
 
