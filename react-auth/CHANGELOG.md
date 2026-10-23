@@ -10,6 +10,14 @@ Releases are tagged `react-auth@X.Y.Z` and publish to npm from CI. The
 npm-style tag stays invisible to the Go toolchain, unlike a
 `react-auth/vX.Y.Z` tag naming the directory's stub module.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking.** `usersNavItem` is renamed `usersMenuItem`, the name WordPress's admin gives a menu row. The old name is gone.
+- The Users row draws `people` from `@wordpress/icons`, WordPress's people icon, in place of its own glyph.
+- `@wordpress/icons` from 18.0.0 joins `@wordpress/ui` as an optional peer of `/wpds`.
+
 ## [0.14.0] - 2026-10-21
 
 ### Added

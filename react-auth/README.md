@@ -10,7 +10,7 @@ Session authentication for React apps backed by gouncer's authkit.
 - `@gopherium/react-auth/admin` is the user administration API client.
 - `@gopherium/react-auth/wpds` renders the WordPress Design System UI:
   `LoginScreen` (brand prop), `AccountPanel`, `UsersScreen`,
-  `NewUserScreen`, `usersNavItem`, `SetupCodeStep`, which asks for
+  `NewUserScreen`, `usersMenuItem`, `SetupCodeStep`, which asks for
   the one-time setup code as Jenkins' "Unlock Jenkins" does, and
   `SetupAccountStep`, the account rows of WordPress's installer with
   its password strength meter. Import
@@ -71,7 +71,7 @@ with a `Field.VisualLabel`, as the step's Confirm Password row is.
 - The client calls same-origin `/api/auth/*` and `/api/users` paths. In
   development, proxy `/api` to your backend so the `__Host-` session
   cookie is first-party.
-- `/wpds` needs the `@wordpress/ui` peer.
+- `/wpds` needs the `@wordpress/ui` and `@wordpress/icons` peers.
 - The account step loads zxcvbn, about 400 kB gzipped, as its own chunk
   the first time it renders. Vite reports that chunk as larger than
   500 kB.
