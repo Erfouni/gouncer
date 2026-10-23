@@ -10,13 +10,16 @@ const manifest = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
 
 const numeric = { numeric: true }
 
+const designSystemPeers = ['@wordpress/i18n', '@wordpress/icons', '@wordpress/theme', '@wordpress/ui']
+
 test('declares the design system window this build is tested against', () => {
 	expect(manifest.peerDependencies['@wordpress/ui']).toBe('>=0.24.0 <0.25.0')
 	expect(manifest.peerDependencies['@wordpress/theme']).toBe('>=2.3.0 <3.0.0')
 	expect(manifest.peerDependencies['@wordpress/i18n']).toBe('>=6.30.0 <7.0.0')
+	expect(manifest.peerDependencies['@wordpress/icons']).toBe('>=18.0.0 <19.0.0')
 })
 
-test.each(['@wordpress/i18n', '@wordpress/theme', '@wordpress/ui'])('pins %s inside its peer window', (name) => {
+test.each(designSystemPeers)('pins %s inside its peer window', (name) => {
 	const range = /^>=(\S+) <(\S+)$/.exec(manifest.peerDependencies[name])
 	const pin = manifest.devDependencies[name]
 

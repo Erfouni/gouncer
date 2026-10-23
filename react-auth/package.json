@@ -52,6 +52,7 @@
     "@testing-library/jest-dom": "^6.9.1 || ^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@wordpress/i18n": ">=6.30.0 <7.0.0",
+    "@wordpress/icons": ">=18.0.0 <19.0.0",
     "@wordpress/theme": ">=2.3.0 <3.0.0",
     "@wordpress/ui": ">=0.24.0 <0.25.0",
     "msw": "^2.15.0",
@@ -63,6 +64,9 @@
       "optional": true
     },
     "@testing-library/react": {
+      "optional": true
+    },
+    "@wordpress/icons": {
       "optional": true
     },
     "@wordpress/theme": {
@@ -89,6 +93,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^5.0.3",
     "@wordpress/i18n": "6.30.0",
+    "@wordpress/icons": "18.0.0",
     "@wordpress/theme": "2.3.0",
     "@wordpress/ui": "0.24.0",
     "eslint": "^9.39.1",
