@@ -2,7 +2,7 @@
 
 export { AccountPanel } from './AccountPanel.js'
 export { LoginScreen } from './LoginScreen.js'
-export { usersNavItem } from './nav.js'
+export { usersMenuItem } from './nav.js'
 export { NewUserScreen } from './NewUserScreen.js'
 export { RequestResetScreen } from './RequestResetScreen.js'
 export { ResetPasswordScreen } from './ResetPasswordScreen.js'

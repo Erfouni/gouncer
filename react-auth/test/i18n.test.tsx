@@ -7,7 +7,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { DOMAIN } from '../src/domain'
 import { seedSession } from '../src/testing'
-import { AccountPanel, LoginScreen, SetupAccountStep, SetupCodeStep, usersNavItem } from '../src/wpds'
+import { AccountPanel, LoginScreen, SetupAccountStep, SetupCodeStep, usersMenuItem } from '../src/wpds'
 
 vi.mock('../src/wpds/strength', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../src/wpds/strength')>()),
@@ -52,8 +52,8 @@ test('names the brick after itself and not after any product', () => {
 	expect(DOMAIN).toBe('gopherium-react-auth')
 })
 
-test('the users nav label follows the catalogue the consumer loaded', () => {
-	expect(usersNavItem.label).toBe('Usuarios')
+test('the users menu label follows the catalogue the consumer loaded', () => {
+	expect(usersMenuItem.label).toBe('Usuarios')
 })
 
 test('the login screen follows the catalogue the consumer loaded', async () => {
