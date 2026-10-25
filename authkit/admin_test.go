@@ -5,6 +5,7 @@ package authkit_test
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/testkit"
+	"github.com/gopherium/gouncer/avatar"
 )
 
 type userBody struct {
@@ -22,6 +25,7 @@ type userBody struct {
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"created_at"`
 	Editable  *bool     `json:"editable"`
+	Avatar    *string   `json:"avatar"`
 }
 
 func cookiedServer(handler http.Handler, cookie *http.Cookie) http.Handler {
@@ -95,6 +99,142 @@ func TestListMarksEveryAccountEditableWithoutARoleSource(t *testing.T) {
 			t.Errorf("account %s lists as not editable, want every account editable with no role source", account.Email)
 		}
 	}
+}
+
+// avatarServer mounts login, the user list and creation over an administration drawing avatars under options.
+func avatarServer(t *testing.T, store *testkit.Store, options *avatar.Options, size int) http.Handler {
+	t.Helper()
+	addAda(t, store)
+	h := authkit.New(authkit.Config{Store: store})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: store, Avatars: options, AvatarSize: size})
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", h.Login)
+	mux.Handle("GET /api/users", h.RequireSession(http.HandlerFunc(admin.List)))
+	mux.Handle("POST /api/users", h.RequireSession(http.HandlerFunc(admin.Create)))
+	return cookiedServer(mux, loginCookie(t, mux))
+}
+
+// listedUsers lists the accounts through srv, failing unless the list answers.
+func listedUsers(t *testing.T, srv http.Handler) []userBody {
+	t.Helper()
+	recorder := doRequest(t, srv, http.MethodGet, "/api/users", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	return decodeBody[[]userBody](t, recorder)
+}
+
+// wantAvatars fails unless each account carries the avatar the options draw at size.
+func wantAvatars(t *testing.T, accounts []userBody, size int, options avatar.Options) {
+	t.Helper()
+	for _, account := range accounts {
+		want := avatar.Address(account.Name, account.Email, size, options)
+		got := "none"
+		if account.Avatar != nil {
+			got = strconv.Quote(*account.Avatar)
+		}
+		if got != strconv.Quote(want) {
+			t.Errorf("avatar of %s = %s, want %q", account.Email, got, want)
+		}
+	}
+}
+
+func TestListDrawsEachAvatarAsInitials(t *testing.T) {
+	t.Parallel()
+
+	for _, options := range []avatar.Options{{}, {Mode: avatar.ModeInitials}} {
+		t.Run("mode "+strconv.Quote(string(options.Mode)), func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			srv := avatarServer(t, store, &options, 48)
+			store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+
+			accounts := listedUsers(t, srv)
+
+			wantAvatars(t, accounts, 48, options)
+			for _, account := range accounts {
+				if account.Avatar != nil && !strings.HasPrefix(*account.Avatar, "data:image/svg+xml;base64,") {
+					t.Errorf("avatar of %s = %q, want the drawn initial", account.Email, *account.Avatar)
+				}
+			}
+		})
+	}
+}
+
+func TestListDrawsEachAvatarFromGravatar(t *testing.T) {
+	t.Parallel()
+
+	options := avatar.Options{Mode: avatar.ModeGravatar, Default: avatar.DefaultIdenticon, Rating: avatar.RatingPG}
+	store := testkit.NewStore()
+	srv := avatarServer(t, store, &options, 48)
+	store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+
+	accounts := listedUsers(t, srv)
+
+	wantAvatars(t, accounts, 48, options)
+	for _, account := range accounts {
+		if account.Avatar != nil && !strings.HasSuffix(*account.Avatar, "?s=48&d=identicon&r=pg") {
+			t.Errorf("avatar of %s = %q, want the Gravatar address at 48 pixels", account.Email, *account.Avatar)
+		}
+	}
+}
+
+func TestListDrawsAvatarsAtTheDefaultSizeWhenNoSizeIsGiven(t *testing.T) {
+	t.Parallel()
+
+	options := avatar.Options{Mode: avatar.ModeGravatar}
+	srv := avatarServer(t, testkit.NewStore(), &options, 0)
+
+	wantAvatars(t, listedUsers(t, srv), avatar.DefaultSize, options)
+}
+
+func TestListCarriesNoAvatarWhenAvatarsAreOffOrUnset(t *testing.T) {
+	t.Parallel()
+
+	for name, options := range map[string]*avatar.Options{
+		"off":   {Mode: avatar.ModeOff},
+		"unset": nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			srv := avatarServer(t, store, options, 48)
+			store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+
+			recorder := doRequest(t, srv, http.MethodGet, "/api/users", "")
+
+			if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), `"avatar"`) {
+				t.Errorf("list = %d %s, want 200 with no avatar on any account", recorder.Code, recorder.Body)
+			}
+		})
+	}
+}
+
+func TestCreateAnswersTheAvatarOfTheCreatedAccount(t *testing.T) {
+	t.Parallel()
+
+	options := avatar.Options{Mode: avatar.ModeInitials}
+	srv := avatarServer(t, testkit.NewStore(), &options, 48)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/users",
+		`{"email":"grace@example.com","name":"Grace Hopper","password":"correct horse battery"}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+	wantAvatars(t, []userBody{decodeBody[userBody](t, recorder)}, 48, options)
+}
+
+func TestAvatarOptionsHoldAsTheAdministrationWasBuilt(t *testing.T) {
+	t.Parallel()
+
+	options := avatar.Options{Mode: avatar.ModeGravatar}
+	srv := avatarServer(t, testkit.NewStore(), &options, 48)
+	options.Mode = avatar.ModeOff
+
+	wantAvatars(t, listedUsers(t, srv), 48, avatar.Options{Mode: avatar.ModeGravatar})
 }
 
 func TestCreateUser(t *testing.T) {

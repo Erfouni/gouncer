@@ -14,6 +14,8 @@ Releases of this module are tagged `authkit/vX.Y.Z`.
 - `Account.Editable`, true when the account's role is undeclared or the reader's role carries every capability of it, the rule every write uses.
 - `ListAccounts` and `CreateAccount` judge `Editable` for the reader the context identifies, and every account is editable without `AdminConfig.Roles`.
 - `Setup.CreateFirstAccount` answers the first account with `Editable` true, as its holder sees it.
+- `AdminConfig.Avatars`, which gives each account an `avatar` from gouncer's `avatar` package, none when nil or off.
+- `AdminConfig.AvatarSize`, the size avatars are drawn at, `avatar.DefaultSize` when zero.
 - `ErrUserNotEditable`, a 403 with the code `user_not_editable` and WordPress's "Sorry, you are not allowed to edit this user.", for any write on an account the actor may not edit.
 - `ErrRoleNotGrantable`, a 403 with the code `role_not_grantable` and WordPress's "Sorry, you are not allowed to give users that role.", for giving a role the actor may not give or re-enabling an account whose role nothing declares.
 

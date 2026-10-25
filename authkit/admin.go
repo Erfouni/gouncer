@@ -3,6 +3,7 @@
 package authkit
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/avatar"
 )
 
 // AdminStore persists users for both login and administration.
@@ -43,6 +45,10 @@ type AdminConfig struct {
 	Privileged gouncer.Roles
 	// Roles answers which roles exist and which a caller may hand out. Nil checks neither.
 	Roles RoleSource
+	// Avatars is how each account's avatar is drawn, copied on construction. Nil or the off mode draws none.
+	Avatars *avatar.Options
+	// AvatarSize is the size in pixels avatars are drawn at, avatar.DefaultSize when zero.
+	AvatarSize int
 }
 
 // AdminHandlers serves user administration over HTTP. Mount its handlers
@@ -51,11 +57,27 @@ type AdminHandlers struct {
 	store      AdminStore
 	privileged gouncer.Roles
 	roles      RoleSource
+	avatars    avatar.Options
+	avatarSize int
 }
 
 // NewAdmin returns AdminHandlers administering the accounts cfg names.
 func NewAdmin(cfg AdminConfig) *AdminHandlers {
-	return &AdminHandlers{store: cfg.Store, privileged: slices.Clone(cfg.Privileged), roles: cfg.Roles}
+	return &AdminHandlers{
+		store:      cfg.Store,
+		privileged: slices.Clone(cfg.Privileged),
+		roles:      cfg.Roles,
+		avatars:    avatarsOf(cfg.Avatars),
+		avatarSize: cmp.Or(cfg.AvatarSize, avatar.DefaultSize),
+	}
+}
+
+// avatarsOf returns the options avatars are drawn under, the off mode when none are given.
+func avatarsOf(options *avatar.Options) avatar.Options {
+	if options == nil {
+		return avatar.Options{Mode: avatar.ModeOff}
+	}
+	return *options
 }
 
 // refuseUnprivileged reports whether it refused an actor holding no privileged role.
@@ -77,12 +99,14 @@ type Account struct {
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 	Editable  bool      `json:"editable"`
+	Avatar    string    `json:"avatar,omitempty"`
 }
 
-// account builds the Account of a user as a reader holding reader sees it.
+// account builds the Account of a user as a reader holding reader sees it, with its avatar.
 func (a *AdminHandlers) account(u gouncer.User, reader string) Account {
 	account := newAccount(u)
 	account.Editable = a.editable(reader, u.Role, declared(a.roles, u.Role))
+	account.Avatar = avatar.Address(u.Name, u.Email, a.avatarSize, a.avatars)
 	return account
 }
 
