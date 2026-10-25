@@ -24,6 +24,10 @@ func cleanName(name string) string {
 		}
 	}, name)
 	cleaned = strings.Join(strings.FieldsFunc(cleaned, func(r rune) bool { return r == ' ' }), " ")
-	// Preserve U+0085, a C1 control, even though Unicode classifies it as whitespace.
-	return strings.TrimFunc(cleaned, func(r rune) bool { return r != '\u0085' && unicode.IsSpace(r) })
+	return strings.TrimFunc(cleaned, isTrimmedSpace)
+}
+
+// isTrimmedSpace reports whether r is trimmed from the ends of a name.
+func isTrimmedSpace(r rune) bool {
+	return r != '\u0085' && unicode.IsSpace(r)
 }
