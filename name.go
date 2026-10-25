@@ -13,18 +13,24 @@ func cleanName(name string) string {
 	if !utf8.ValidString(name) {
 		return ""
 	}
-	cleaned := strings.Map(func(r rune) rune {
+	var cleaned strings.Builder
+	cleaned.Grow(len(name))
+	spaceDue := false
+	for _, r := range name {
 		switch {
-		case r == '\t' || r == '\n' || r == '\r':
-			return ' '
+		case strings.ContainsRune(" \t\n\r", r):
+			spaceDue = cleaned.Len() > 0
 		case r < 0x20:
-			return -1
+			continue
 		default:
-			return r
+			if spaceDue {
+				cleaned.WriteByte(' ')
+				spaceDue = false
+			}
+			cleaned.WriteRune(r)
 		}
-	}, name)
-	cleaned = strings.Join(strings.FieldsFunc(cleaned, func(r rune) bool { return r == ' ' }), " ")
-	return strings.TrimFunc(cleaned, isTrimmedSpace)
+	}
+	return strings.TrimFunc(cleaned.String(), isTrimmedSpace)
 }
 
 // isTrimmedSpace reports whether r is trimmed from the ends of a name.
