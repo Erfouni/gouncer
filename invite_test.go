@@ -152,16 +152,22 @@ func TestSetPasswordRejectsOutOfBoundsPasswords(t *testing.T) {
 func TestNewInvitedUserRefusesEveryC1Control(t *testing.T) {
 	t.Parallel()
 
+	for _, email := range addressesWithC1Controls() {
+		if _, err := gouncer.NewInvitedUser(email, "Maria Perez"); !errors.Is(err, gouncer.ErrInvalidEmail) {
+			t.Errorf("NewInvitedUser(%+q) error = %v, want %v", email, err, gouncer.ErrInvalidEmail)
+		}
+	}
+}
+
+// addressesWithC1Controls returns addresses holding each C1 control in the local part, the domain or at an end.
+func addressesWithC1Controls() []string {
+	var emails []string
 	for r := rune(0x80); r <= 0x9f; r++ {
 		c := string(r)
-		emails := []string{"ma" + c + "ria@example.com", "maria@exa" + c + "mple.com"}
+		emails = append(emails, "ma"+c+"ria@example.com", "maria@exa"+c+"mple.com")
 		if !unicode.IsSpace(r) {
 			emails = append(emails, c+"maria@example.com", "maria@example.com"+c)
 		}
-		for _, email := range emails {
-			if _, err := gouncer.NewInvitedUser(email, "Maria Perez"); !errors.Is(err, gouncer.ErrInvalidEmail) {
-				t.Errorf("NewInvitedUser(%+q) error = %v, want %v", email, err, gouncer.ErrInvalidEmail)
-			}
-		}
 	}
+	return emails
 }
