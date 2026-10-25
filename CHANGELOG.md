@@ -10,10 +10,13 @@ at v0.x, minor releases may contain breaking changes.
 ### Changed
 
 - The module needs Go 1.27.3.
+- `NewUser` and `NewInvitedUser` keep U+0085 at the ends of a name.
 
 ### Fixed
 
 - `NewUser` and `NewInvitedUser` refuse a control character in an address.
+- `NewUser` and `NewInvitedUser` drop C0 controls from a name and fold its spaces, tabs and line breaks.
+- `NewUser` and `NewInvitedUser` refuse a name that is not valid UTF-8 with `ErrEmptyName`.
 
 ## [0.5.0] - 2026-10-13
 
