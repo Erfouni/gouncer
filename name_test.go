@@ -44,6 +44,11 @@ func TestAccountConstructorsCleanNames(t *testing.T) {
 		"C1 kept at the ends":             {"\U00000080\U0000009bAda\U0000009f", "\U00000080\U0000009bAda\U0000009f"},
 		"bidi and zero width at the ends": {"\U0000202eAda\U0000200b", "\U0000202eAda\U0000200b"},
 		"256 letters after cleaning":      {strings.Repeat("a", 256) + "\x00", strings.Repeat("a", 256)},
+		"256 two-byte letters":            {strings.Repeat("\U000000e9", 256), strings.Repeat("\U000000e9", 256)},
+		"no-break space kept inside":      {"Ada\U000000a0Lovelace", "Ada\U000000a0Lovelace"},
+		"line separator kept inside":      {"Ada\U00002028Lovelace", "Ada\U00002028Lovelace"},
+		"control between two spaces":      {"Ada \x01 Lovelace", "Ada Lovelace"},
+		"control before a space":          {"\x01 Ada", "Ada"},
 	}
 
 	for constructor, create := range constructors {
