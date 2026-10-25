@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -58,8 +59,17 @@ func TestNewInvitedUserRejectsInvalidIdentity(t *testing.T) {
 		"empty email":        {"", "Maria", gouncer.ErrInvalidEmail},
 		"email without at":   {"maria.example.com", "Maria", gouncer.ErrInvalidEmail},
 		"email with display": {"Maria <maria@example.com>", "Maria", gouncer.ErrInvalidEmail},
-		"empty name":         {"maria@example.com", "   ", gouncer.ErrEmptyName},
-		"name too long":      {"maria@example.com", strings.Repeat("m", 257), gouncer.ErrNameTooLong},
+		"email with C0 control": {
+			"a\x05b@example.com", "Maria", gouncer.ErrInvalidEmail,
+		},
+		"email with C1 control U+0085": {
+			"a\u0085b@example.com", "Maria", gouncer.ErrInvalidEmail,
+		},
+		"email with C1 control U+009B": {
+			"a\u009b8mb@example.com", "Maria", gouncer.ErrInvalidEmail,
+		},
+		"empty name":    {"maria@example.com", "   ", gouncer.ErrEmptyName},
+		"name too long": {"maria@example.com", strings.Repeat("m", 257), gouncer.ErrNameTooLong},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -137,4 +147,27 @@ func TestSetPasswordRejectsOutOfBoundsPasswords(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewInvitedUserRefusesEveryC1Control(t *testing.T) {
+	t.Parallel()
+
+	for _, email := range addressesWithC1Controls() {
+		if _, err := gouncer.NewInvitedUser(email, "Maria Perez"); !errors.Is(err, gouncer.ErrInvalidEmail) {
+			t.Errorf("NewInvitedUser(%+q) error = %v, want %v", email, err, gouncer.ErrInvalidEmail)
+		}
+	}
+}
+
+// addressesWithC1Controls returns addresses holding each C1 control in the local part, the domain or at an end.
+func addressesWithC1Controls() []string {
+	var emails []string
+	for r := rune(0x80); r <= 0x9f; r++ {
+		c := string(r)
+		emails = append(emails, "ma"+c+"ria@example.com", "maria@exa"+c+"mple.com")
+		if !unicode.IsSpace(r) {
+			emails = append(emails, c+"maria@example.com", "maria@example.com"+c)
+		}
+	}
+	return emails
 }

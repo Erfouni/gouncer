@@ -56,6 +56,15 @@ func TestNewUserRejectsInvalidInput(t *testing.T) {
 		"empty email":        {"", "Ada", "correct horse battery", gouncer.ErrInvalidEmail},
 		"email without at":   {"ada.example.com", "Ada", "correct horse battery", gouncer.ErrInvalidEmail},
 		"email with display": {"Ada <ada@example.com>", "Ada", "correct horse battery", gouncer.ErrInvalidEmail},
+		"email with C0 control": {
+			"a\x1bb@example.com", "Ada", "correct horse battery", gouncer.ErrInvalidEmail,
+		},
+		"email with C1 control U+0085": {
+			"a\u0085b@example.com", "Ada", "correct horse battery", gouncer.ErrInvalidEmail,
+		},
+		"email with C1 control U+009B": {
+			"a\u009b8mb@example.com", "Ada", "correct horse battery", gouncer.ErrInvalidEmail,
+		},
 		"email too long": {
 			strings.Repeat("a", 250) + "@example.com", "Ada", "correct horse battery", gouncer.ErrInvalidEmail,
 		},
@@ -160,5 +169,33 @@ func TestPasswordHashesAreSalted(t *testing.T) {
 
 	if first.PasswordHash == second.PasswordHash {
 		t.Error("two hashes of the same password are identical, want unique salts")
+	}
+}
+
+func TestNewUserAcceptsTrimmedAndAccentedAddresses(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		email string
+		want  string
+	}{
+		"accented local part": {"mar\U000000eda@example.com", "mar\U000000eda@example.com"},
+		"trailing newline":    {"maria@example.com\n", "maria@example.com"},
+		"leading tab":         {"\tmaria@example.com", "maria@example.com"},
+		"trailing next line":  {"maria@example.com\u0085", "maria@example.com"},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := gouncer.NewUser(tc.email, "Maria Perez", "correct horse battery")
+			if err != nil {
+				t.Fatalf("NewUser(%+q) error = %v, want nil", tc.email, err)
+			}
+			if u.Email != tc.want {
+				t.Errorf("email = %+q, want %+q", u.Email, tc.want)
+			}
+		})
 	}
 }

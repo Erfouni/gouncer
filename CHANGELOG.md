@@ -11,6 +11,10 @@ at v0.x, minor releases may contain breaking changes.
 
 - The module needs Go 1.27.3.
 
+### Fixed
+
+- `NewUser` and `NewInvitedUser` refuse a control character in an address.
+
 ## [0.5.0] - 2026-10-13
 
 ### Added
