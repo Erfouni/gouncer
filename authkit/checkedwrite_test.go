@@ -207,8 +207,8 @@ func TestSetAccountDisabledFromRefusesReenablingAnAccountHoldingNoDeclaredRole(t
 
 		err := c.admin.SetAccountDisabledFrom(t.Context(), c.actor.ID, c.maria.ID, held, false)
 
-		if !errors.Is(err, authkit.ErrBeyondReach) {
-			t.Errorf("SetAccountDisabledFrom(%q, enable) error = %v, want ErrBeyondReach", held, err)
+		if !errors.Is(err, authkit.ErrRoleNotGrantable) {
+			t.Errorf("SetAccountDisabledFrom(%q, enable) error = %v, want ErrRoleNotGrantable", held, err)
 		}
 		c.wantDisabled(t, c.maria, true)
 	})

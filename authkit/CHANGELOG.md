@@ -9,10 +9,20 @@ Releases of this module are tagged `authkit/vX.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- `ErrUserNotEditable`, a 403 with the code `user_not_editable` and WordPress's "Sorry, you are not allowed to edit this user.", for any write on an account the actor may not edit.
+- `ErrRoleNotGrantable`, a 403 with the code `role_not_grantable` and WordPress's "Sorry, you are not allowed to give users that role.", for giving a role the actor may not give or re-enabling an account whose role nothing declares.
+
 ### Changed
 
+- **Breaking.** The code `role_beyond_reach` splits into `user_not_editable` and `role_not_grantable`, as WordPress's REST API splits `rest_cannot_edit` and `rest_user_invalid_role`.
 - The module builds against gouncer v0.5.0, the first release with `avatar`.
 - The module needs Go 1.27.3.
+
+### Removed
+
+- **Breaking.** `ErrBeyondReach`, replaced by `ErrUserNotEditable` and `ErrRoleNotGrantable`. No alias keeps the name.
 
 ## [0.23.0] - 2026-10-18
 

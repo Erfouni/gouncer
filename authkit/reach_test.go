@@ -228,14 +228,14 @@ func TestCreateRefusesAnEmptyRoleWhateverTheSourceSays(t *testing.T) {
 	wantNoMaria(t, store)
 }
 
-func TestCreateRefusesARoleBeyondTheActorsReach(t *testing.T) {
+func TestCreateRefusesARoleTheActorMayNotGive(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
 	srv := reachServer(t, store, ladder(), "moderator")
 
-	wantRefused(t, createMaria(t, srv, "admin"), http.StatusForbidden, "role_beyond_reach")
-	wantRefused(t, createMaria(t, srv, "organizer"), http.StatusForbidden, "role_beyond_reach")
+	wantRefused(t, createMaria(t, srv, "admin"), http.StatusForbidden, "role_not_grantable")
+	wantRefused(t, createMaria(t, srv, "organizer"), http.StatusForbidden, "role_not_grantable")
 	wantNoMaria(t, store)
 }
 
@@ -281,29 +281,35 @@ func TestSetRoleRefusesAnEmptyRoleWhateverTheSourceSays(t *testing.T) {
 	}
 }
 
-func TestSetRoleRefusesHandingOutARoleBeyondReach(t *testing.T) {
+func TestSetRoleRefusesARoleTheActorMayNotGive(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
 	srv := reachServer(t, store, ladder(), "moderator")
 	maria := addMariaAs(t, store, "member")
 
-	wantRefused(t, setRole(t, srv, maria, "admin"), http.StatusForbidden, "role_beyond_reach")
+	wantRefused(t, setRole(t, srv, maria, "admin"), http.StatusForbidden, "role_not_grantable")
 	if held := store.Users[maria.ID].Role; held != "member" {
 		t.Errorf("role = %q, want the refused write to leave %q", held, "member")
 	}
 }
 
-func TestSetRoleRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
+func TestSetRoleRefusesAnAccountTheActorMayNotEdit(t *testing.T) {
 	t.Parallel()
 
-	store := testkit.NewStore()
-	srv := reachServer(t, store, ladder(), "moderator")
-	maria := addMariaAs(t, store, "admin")
+	for _, role := range []string{"member", "organizer"} {
+		t.Run("to "+role, func(t *testing.T) {
+			t.Parallel()
 
-	wantRefused(t, setRole(t, srv, maria, "member"), http.StatusForbidden, "role_beyond_reach")
-	if held := store.Users[maria.ID].Role; held != "admin" {
-		t.Errorf("role = %q, want the refused write to leave %q", held, "admin")
+			store := testkit.NewStore()
+			srv := reachServer(t, store, ladder(), "moderator")
+			maria := addMariaAs(t, store, "admin")
+
+			wantRefused(t, setRole(t, srv, maria, role), http.StatusForbidden, "user_not_editable")
+			if held := store.Users[maria.ID].Role; held != "admin" {
+				t.Errorf("role = %q, want the refused write to leave %q", held, "admin")
+			}
+		})
 	}
 }
 
@@ -521,7 +527,7 @@ func TestErrorResponseForAuthErrorNamesAChangedRole(t *testing.T) {
 	}
 }
 
-func TestSetDisabledRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
+func TestSetDisabledRefusesAnAccountTheActorMayNotEdit(t *testing.T) {
 	t.Parallel()
 
 	for _, disabled := range []bool{true, false} {
@@ -535,7 +541,7 @@ func TestSetDisabledRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
 				disable(store, maria)
 			}
 
-			wantRefused(t, setDisabled(t, srv, maria, disabled), http.StatusForbidden, "role_beyond_reach")
+			wantRefused(t, setDisabled(t, srv, maria, disabled), http.StatusForbidden, "user_not_editable")
 			if store.Users[maria.ID].Disabled == disabled {
 				t.Errorf("disabled = %v, want the refused write to leave %v", disabled, !disabled)
 			}
@@ -581,7 +587,7 @@ func TestReenablingRefusesAnAccountHoldingNoDeclaredRole(t *testing.T) {
 			maria := addMariaAs(t, store, held)
 			disable(store, maria)
 
-			wantRefused(t, setDisabled(t, srv, maria, false), http.StatusForbidden, "role_beyond_reach")
+			wantRefused(t, setDisabled(t, srv, maria, false), http.StatusForbidden, "role_not_grantable")
 			if !store.Users[maria.ID].Disabled {
 				t.Error("account enabled, want the refused write to leave it disabled")
 			}

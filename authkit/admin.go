@@ -147,7 +147,7 @@ func (a *AdminHandlers) SetAccountDisabledFrom(
 		return a.SetAccountDisabled(ctx, actorID, id, disabled)
 	}
 	if !disabled && !declared(a.roles, held) {
-		return ErrBeyondReach
+		return ErrRoleNotGrantable
 	}
 	return a.store.SetUserDisabledFrom(ctx, id, held, disabled, a.privileged)
 }
@@ -253,7 +253,7 @@ func (a *AdminHandlers) SetDisabled(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	held, ok := a.heldWithinReach(w, r, id, !*req.Disabled)
+	held, ok := a.heldEditable(w, r, id, !*req.Disabled)
 	if !ok {
 		return
 	}
