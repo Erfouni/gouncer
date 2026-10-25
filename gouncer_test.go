@@ -180,3 +180,31 @@ func TestNewUserRefusesControlCharactersInEmail(t *testing.T) {
 		t.Errorf("NewUser() error = %v, want %v", err, gouncer.ErrInvalidEmail)
 	}
 }
+
+func TestNewUserAcceptsTrimmedAndAccentedAddresses(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		email string
+		want  string
+	}{
+		"accented local part": {"mar\U000000eda@example.com", "mar\U000000eda@example.com"},
+		"trailing newline":    {"maria@example.com\n", "maria@example.com"},
+		"leading tab":         {"\tmaria@example.com", "maria@example.com"},
+		"trailing next line":  {"maria@example.com\u0085", "maria@example.com"},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := gouncer.NewUser(tc.email, "Maria Perez", "correct horse battery")
+			if err != nil {
+				t.Fatalf("NewUser(%+q) error = %v, want nil", tc.email, err)
+			}
+			if u.Email != tc.want {
+				t.Errorf("email = %+q, want %+q", u.Email, tc.want)
+			}
+		})
+	}
+}
