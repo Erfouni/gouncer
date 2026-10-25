@@ -74,6 +74,16 @@ func TestNewUserRejectsInvalidInput(t *testing.T) {
 		"password too long": {
 			"ada@example.com", "Ada", strings.Repeat("x", 1025), gouncer.ErrPasswordTooLong,
 		},
+		"name of C0 controls only": {
+			"ada@example.com", "\x00\x01\x1f", "correct horse battery", gouncer.ErrEmptyName,
+		},
+		"name with a stray byte":     {"ada@example.com", "Ada\xff", "correct horse battery", gouncer.ErrEmptyName},
+		"name with an overlong NUL":  {"ada@example.com", "\xc0\x80", "correct horse battery", gouncer.ErrEmptyName},
+		"name with a surrogate half": {"ada@example.com", "\xed\xa0\x80", "correct horse battery", gouncer.ErrEmptyName},
+		"name above U+10FFFF":        {"ada@example.com", "\xf4\x90\x80\x80", "correct horse battery", gouncer.ErrEmptyName},
+		"name too long after cleaning": {
+			"ada@example.com", strings.Repeat("a", 257) + "\x00", "correct horse battery", gouncer.ErrNameTooLong,
+		},
 	}
 
 	for testName, tc := range tests {

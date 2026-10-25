@@ -70,6 +70,14 @@ func TestNewInvitedUserRejectsInvalidIdentity(t *testing.T) {
 		},
 		"empty name":    {"maria@example.com", "   ", gouncer.ErrEmptyName},
 		"name too long": {"maria@example.com", strings.Repeat("m", 257), gouncer.ErrNameTooLong},
+		"name of C0 controls only": {
+			"maria@example.com", "\x00\x01\x1f", gouncer.ErrEmptyName,
+		},
+		"name with a stray byte":       {"maria@example.com", "Maria\xff", gouncer.ErrEmptyName},
+		"name with an overlong NUL":    {"maria@example.com", "\xc0\x80", gouncer.ErrEmptyName},
+		"name with a surrogate half":   {"maria@example.com", "\xed\xa0\x80", gouncer.ErrEmptyName},
+		"name above U+10FFFF":          {"maria@example.com", "\xf4\x90\x80\x80", gouncer.ErrEmptyName},
+		"name too long after cleaning": {"maria@example.com", strings.Repeat("m", 257) + "\x00", gouncer.ErrNameTooLong},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

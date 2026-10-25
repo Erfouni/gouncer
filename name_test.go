@@ -3,7 +3,6 @@
 package gouncer_test
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -85,25 +84,5 @@ func TestNewInvitedUserCleansEveryC0Control(t *testing.T) {
 				t.Errorf("name = %+q, want %+q", u.Name, want)
 			}
 		})
-	}
-}
-
-func TestNewInvitedUserRejectsNamesThatCleanToEmpty(t *testing.T) {
-	t.Parallel()
-
-	for _, name := range []string{"\x00\x01\x1f", "Ada\xff", "\xc0\x80", "\xed\xa0\x80", "\xf4\x90\x80\x80"} {
-		_, err := gouncer.NewInvitedUser("ada@example.com", name)
-		if !errors.Is(err, gouncer.ErrEmptyName) {
-			t.Errorf("name %q: error = %v, want %v", name, err, gouncer.ErrEmptyName)
-		}
-	}
-}
-
-func TestNewInvitedUserRejectsNamesStillTooLongAfterCleaning(t *testing.T) {
-	t.Parallel()
-
-	_, err := gouncer.NewInvitedUser("ada@example.com", strings.Repeat("a", 257)+"\x00")
-	if !errors.Is(err, gouncer.ErrNameTooLong) {
-		t.Errorf("NewInvitedUser() error = %v, want %v", err, gouncer.ErrNameTooLong)
 	}
 }
