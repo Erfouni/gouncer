@@ -21,6 +21,7 @@ type userBody struct {
 	Name      string    `json:"name"`
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"created_at"`
+	Editable  *bool     `json:"editable"`
 }
 
 func cookiedServer(handler http.Handler, cookie *http.Cookie) http.Handler {
@@ -75,6 +76,24 @@ func TestListUsers(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(recorder.Body.String()), "password") {
 		t.Error("user listing leaks password material")
+	}
+}
+
+func TestListMarksEveryAccountEditableWithoutARoleSource(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv, _ := authedUserServer(t, store)
+	grace := store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+	grace.Role = "withdrawn"
+	store.Users[grace.ID] = grace
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/users", "")
+
+	for _, account := range decodeBody[[]userBody](t, recorder) {
+		if account.Editable == nil || !*account.Editable {
+			t.Errorf("account %s lists as not editable, want every account editable with no role source", account.Email)
+		}
 	}
 }
 

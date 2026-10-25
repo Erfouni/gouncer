@@ -261,5 +261,7 @@ func (s *Setup) CreateFirstAccount(ctx context.Context, store SetupStore, first 
 		return Account{}, err
 	}
 	s.finish(ctx)
-	return newAccount(u), nil
+	account := newAccount(u)
+	account.Editable = true
+	return account, nil
 }

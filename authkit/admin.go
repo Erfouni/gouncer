@@ -76,6 +76,14 @@ type Account struct {
 	Confirmed bool      `json:"confirmed"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+	Editable  bool      `json:"editable"`
+}
+
+// account builds the Account of a user as a reader holding reader sees it.
+func (a *AdminHandlers) account(u gouncer.User, reader string) Account {
+	account := newAccount(u)
+	account.Editable = a.editable(reader, u.Role, declared(a.roles, u.Role))
+	return account
 }
 
 // newAccount builds an Account from a user, normalizing the timestamp to UTC.
@@ -94,15 +102,16 @@ func newAccount(u gouncer.User) Account {
 // ErrSelfDisable reports an account disabling itself.
 var ErrSelfDisable = errors.New("authkit: cannot disable your own account")
 
-// ListAccounts returns every user account ordered for display.
+// ListAccounts returns every user account ordered for display, as the reader the context identifies sees it.
 func (a *AdminHandlers) ListAccounts(ctx context.Context) ([]Account, error) {
 	users, err := a.store.ListUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
+	reader := IdentityFromContext(ctx).Role
 	accounts := make([]Account, len(users))
 	for i, u := range users {
-		accounts[i] = newAccount(u)
+		accounts[i] = a.account(u, reader)
 	}
 	return accounts, nil
 }
@@ -120,7 +129,7 @@ func (a *AdminHandlers) CreateAccount(ctx context.Context, email, name, password
 	if err := a.store.CreateUser(ctx, u); err != nil {
 		return Account{}, err
 	}
-	return newAccount(u), nil
+	return a.account(u, IdentityFromContext(ctx).Role), nil
 }
 
 // SetAccountDisabled updates whether the account may log in, refusing an actor disabling itself.

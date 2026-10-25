@@ -965,7 +965,7 @@ func TestCreateFirstAccountStartsTheAccountUnderTheRoleItIsGiven(t *testing.T) {
 	held := storedOwner(t, store)
 	want := authkit.Account{
 		ID: held.ID, Email: "maria@example.com", Name: "Maria Perez", Confirmed: true, Role: "owner",
-		CreatedAt: account.CreatedAt,
+		CreatedAt: account.CreatedAt, Editable: true,
 	}
 	if account != want || !account.CreatedAt.Equal(held.CreatedAt) {
 		t.Errorf("CreateFirstAccount() = %+v, want %+v created at %v", account, want, held.CreatedAt)
