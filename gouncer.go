@@ -18,7 +18,7 @@ import (
 // ErrInvalidEmail reports that an email address is not a plain valid address.
 var ErrInvalidEmail = errors.New("gouncer: invalid email")
 
-// ErrEmptyName reports that a user name is empty after cleaning.
+// ErrEmptyName reports that a user name is empty after cleaning or is not valid UTF-8.
 var ErrEmptyName = errors.New("gouncer: empty name")
 
 // ErrWeakPassword reports that a password is shorter than the minimum length.
@@ -53,9 +53,7 @@ type User struct {
 	CreatedAt    time.Time
 }
 
-// NewUser returns a validated confirmed [User] with a normalized email,
-// a cleaned name, and the password stored as an argon2id hash. Invalid
-// input returns one of the package's Err* sentinels.
+// NewUser returns a confirmed [User] with a normalized email, a cleaned name and an argon2id password hash.
 func NewUser(email, name, password string) (User, error) {
 	u, err := newIdentity(email, name)
 	if err != nil {
@@ -90,8 +88,7 @@ func (u *User) SetPassword(password string) error {
 	return nil
 }
 
-// newIdentity returns an unconfirmed [User] with a validated normalized
-// email and cleaned name, and no password.
+// newIdentity returns an unconfirmed [User] with a normalized email, a cleaned name and no password.
 func newIdentity(email, name string) (User, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if !isValidEmail(normalizedEmail) {

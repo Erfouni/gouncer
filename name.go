@@ -8,8 +8,7 @@ import (
 	"unicode/utf8"
 )
 
-// cleanName follows WordPress's whitespace and C0 control handling without
-// removing other Unicode characters from an account name.
+// cleanName returns name with C0 controls dropped and spaces folded, or "" when name is not valid UTF-8.
 func cleanName(name string) string {
 	if !utf8.ValidString(name) {
 		return ""
