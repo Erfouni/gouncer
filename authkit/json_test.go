@@ -99,7 +99,10 @@ func TestErrorResponseForAuthErrorNamesACode(t *testing.T) {
 		message string
 	}{
 		{gouncer.ErrEmailTaken, http.StatusConflict, "email_taken", "email already in use"},
-		{authkit.ErrBeyondReach, http.StatusForbidden, "role_beyond_reach", "role beyond reach"},
+		{authkit.ErrUserNotEditable, http.StatusForbidden, "user_not_editable",
+			"Sorry, you are not allowed to edit this user."},
+		{authkit.ErrRoleNotGrantable, http.StatusForbidden, "role_not_grantable",
+			"Sorry, you are not allowed to give users that role."},
 		{authkit.ErrSetupMisconfigured, http.StatusInternalServerError, "internal", "internal error"},
 		{authkit.ErrSetupDone, http.StatusConflict, "setup_done", "setup already done"},
 		{authkit.ErrSetupCodeInvalid, http.StatusUnauthorized, "setup_code_invalid", "setup code invalid"},

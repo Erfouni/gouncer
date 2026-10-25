@@ -166,7 +166,7 @@ func TestCreateAnswersTheAccountWithoutASession(t *testing.T) {
 	account := decodeBody[authkit.Account](t, recorder)
 	want := authkit.Account{
 		ID: account.ID, Email: "maria@example.com", Name: "Maria Perez", Confirmed: true, Role: "owner",
-		CreatedAt: account.CreatedAt,
+		CreatedAt: account.CreatedAt, Editable: true,
 	}
 	if account != want {
 		t.Errorf("Create answered %+v, want %+v", account, want)

@@ -3,6 +3,7 @@
 package authkit
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/avatar"
 )
 
 // AdminStore persists users for both login and administration.
@@ -43,6 +45,10 @@ type AdminConfig struct {
 	Privileged gouncer.Roles
 	// Roles answers which roles exist and which a caller may hand out. Nil checks neither.
 	Roles RoleSource
+	// Avatars is how each account's avatar is drawn, copied on construction. Nil or the off mode draws none.
+	Avatars *avatar.Options
+	// AvatarSize is the size in pixels avatars are drawn at, avatar.DefaultSize when zero.
+	AvatarSize int
 }
 
 // AdminHandlers serves user administration over HTTP. Mount its handlers
@@ -51,11 +57,27 @@ type AdminHandlers struct {
 	store      AdminStore
 	privileged gouncer.Roles
 	roles      RoleSource
+	avatars    avatar.Options
+	avatarSize int
 }
 
 // NewAdmin returns AdminHandlers administering the accounts cfg names.
 func NewAdmin(cfg AdminConfig) *AdminHandlers {
-	return &AdminHandlers{store: cfg.Store, privileged: slices.Clone(cfg.Privileged), roles: cfg.Roles}
+	return &AdminHandlers{
+		store:      cfg.Store,
+		privileged: slices.Clone(cfg.Privileged),
+		roles:      cfg.Roles,
+		avatars:    avatarsOf(cfg.Avatars),
+		avatarSize: cmp.Or(cfg.AvatarSize, avatar.DefaultSize),
+	}
+}
+
+// avatarsOf returns the options avatars are drawn under, the off mode when none are given.
+func avatarsOf(options *avatar.Options) avatar.Options {
+	if options == nil {
+		return avatar.Options{Mode: avatar.ModeOff}
+	}
+	return *options
 }
 
 // refuseUnprivileged reports whether it refused an actor holding no privileged role.
@@ -76,6 +98,16 @@ type Account struct {
 	Confirmed bool      `json:"confirmed"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+	Editable  bool      `json:"editable"`
+	Avatar    string    `json:"avatar,omitempty"`
+}
+
+// account builds the Account of a user as a reader holding reader sees it, with its avatar.
+func (a *AdminHandlers) account(u gouncer.User, reader string) Account {
+	account := newAccount(u)
+	account.Editable = a.editable(reader, u.Role, declared(a.roles, u.Role))
+	account.Avatar = avatar.Address(u.Name, u.Email, a.avatarSize, a.avatars)
+	return account
 }
 
 // newAccount builds an Account from a user, normalizing the timestamp to UTC.
@@ -94,15 +126,16 @@ func newAccount(u gouncer.User) Account {
 // ErrSelfDisable reports an account disabling itself.
 var ErrSelfDisable = errors.New("authkit: cannot disable your own account")
 
-// ListAccounts returns every user account ordered for display.
+// ListAccounts returns every user account ordered for display, as the reader the context identifies sees it.
 func (a *AdminHandlers) ListAccounts(ctx context.Context) ([]Account, error) {
 	users, err := a.store.ListUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
+	reader := IdentityFromContext(ctx).Role
 	accounts := make([]Account, len(users))
 	for i, u := range users {
-		accounts[i] = newAccount(u)
+		accounts[i] = a.account(u, reader)
 	}
 	return accounts, nil
 }
@@ -120,7 +153,7 @@ func (a *AdminHandlers) CreateAccount(ctx context.Context, email, name, password
 	if err := a.store.CreateUser(ctx, u); err != nil {
 		return Account{}, err
 	}
-	return newAccount(u), nil
+	return a.account(u, IdentityFromContext(ctx).Role), nil
 }
 
 // SetAccountDisabled updates whether the account may log in, refusing an actor disabling itself.
@@ -147,7 +180,7 @@ func (a *AdminHandlers) SetAccountDisabledFrom(
 		return a.SetAccountDisabled(ctx, actorID, id, disabled)
 	}
 	if !disabled && !declared(a.roles, held) {
-		return ErrBeyondReach
+		return ErrRoleNotGrantable
 	}
 	return a.store.SetUserDisabledFrom(ctx, id, held, disabled, a.privileged)
 }
@@ -253,7 +286,7 @@ func (a *AdminHandlers) SetDisabled(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	held, ok := a.heldWithinReach(w, r, id, !*req.Disabled)
+	held, ok := a.heldEditable(w, r, id, !*req.Disabled)
 	if !ok {
 		return
 	}

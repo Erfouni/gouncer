@@ -15,8 +15,11 @@ import (
 // ErrUnknownRole reports a role the role source does not declare.
 var ErrUnknownRole = errors.New("authkit: unknown role")
 
-// ErrBeyondReach reports a role or an account that lies beyond the actor's reach.
-var ErrBeyondReach = errors.New("authkit: role beyond reach")
+// ErrUserNotEditable reports an account whose role carries a capability the actor's role lacks.
+var ErrUserNotEditable = errors.New("authkit: user not editable")
+
+// ErrRoleNotGrantable reports a role the actor may not give, or an undeclared one held by an account to re-enable.
+var ErrRoleNotGrantable = errors.New("authkit: role not grantable")
 
 // ErrRoleChanged reports an account whose role is no longer the one the write was checked against.
 var ErrRoleChanged = errors.New("authkit: role changed")
@@ -35,7 +38,12 @@ func declared(source RoleSource, role string) bool {
 	return source == nil || (role != "" && source.Known(role))
 }
 
-// refuseHandout reports whether it refused handing out an undeclared role or one the actor does not outrank.
+// editable reports whether a reader holding reader may edit an account holding held, every account without a source.
+func (a *AdminHandlers) editable(reader, held string, heldDeclared bool) bool {
+	return a.roles == nil || !heldDeclared || a.roles.Outranks(reader, held)
+}
+
+// refuseHandout reports whether it refused handing out an undeclared role or one the actor may not give.
 func (a *AdminHandlers) refuseHandout(w http.ResponseWriter, r *http.Request, role string) bool {
 	if a.roles == nil {
 		return false
@@ -44,11 +52,15 @@ func (a *AdminHandlers) refuseHandout(w http.ResponseWriter, r *http.Request, ro
 		respondAuthError(w, ErrUnknownRole)
 		return true
 	}
-	return a.refuseOutranking(w, r, role)
+	if a.roles.Outranks(IdentityFromContext(r.Context()).Role, role) {
+		return false
+	}
+	respondAuthError(w, ErrRoleNotGrantable)
+	return true
 }
 
-// heldWithinReach returns the role the account holds and whether the actor may change the account.
-func (a *AdminHandlers) heldWithinReach(
+// heldEditable returns the role the account holds and whether the actor may edit the account.
+func (a *AdminHandlers) heldEditable(
 	w http.ResponseWriter,
 	r *http.Request,
 	id uuid.UUID,
@@ -62,13 +74,23 @@ func (a *AdminHandlers) heldWithinReach(
 		respondAuthError(w, err)
 		return "", false
 	}
-	if declared(a.roles, held) {
-		return held, !a.refuseOutranking(w, r, held)
+	if err := a.heldRefusal(IdentityFromContext(r.Context()).Role, held, reenable); err != nil {
+		respondAuthError(w, err)
+		return held, false
 	}
-	if reenable {
-		respondBeyondReach(w)
+	return held, true
+}
+
+// heldRefusal returns why the actor may not write to an account holding held, or nil when it may.
+func (a *AdminHandlers) heldRefusal(actor, held string, reenable bool) error {
+	heldDeclared := declared(a.roles, held)
+	if !a.editable(actor, held, heldDeclared) {
+		return ErrUserNotEditable
 	}
-	return held, !reenable
+	if reenable && !heldDeclared {
+		return ErrRoleNotGrantable
+	}
+	return nil
 }
 
 // roleChangeHeld returns the role the account holds and whether the actor may move the account to role.
@@ -78,22 +100,8 @@ func (a *AdminHandlers) roleChangeHeld(
 	id uuid.UUID,
 	role string,
 ) (string, bool) {
-	held, ok := a.heldWithinReach(w, r, id, false)
+	held, ok := a.heldEditable(w, r, id, false)
 	return held, ok && !a.refuseHandout(w, r, role)
-}
-
-// refuseOutranking reports whether it refused an actor that does not outrank the role.
-func (a *AdminHandlers) refuseOutranking(w http.ResponseWriter, r *http.Request, role string) bool {
-	if a.roles.Outranks(IdentityFromContext(r.Context()).Role, role) {
-		return false
-	}
-	respondBeyondReach(w)
-	return true
-}
-
-// respondBeyondReach answers that the role lies beyond the actor's reach.
-func respondBeyondReach(w http.ResponseWriter) {
-	respondAuthError(w, ErrBeyondReach)
 }
 
 // accountReader is a store that reads one account by id.

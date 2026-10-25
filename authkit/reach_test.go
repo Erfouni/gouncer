@@ -3,12 +3,14 @@
 package authkit_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -228,15 +230,31 @@ func TestCreateRefusesAnEmptyRoleWhateverTheSourceSays(t *testing.T) {
 	wantNoMaria(t, store)
 }
 
-func TestCreateRefusesARoleBeyondTheActorsReach(t *testing.T) {
+func TestCreateRefusesARoleTheActorMayNotGive(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
 	srv := reachServer(t, store, ladder(), "moderator")
 
-	wantRefused(t, createMaria(t, srv, "admin"), http.StatusForbidden, "role_beyond_reach")
-	wantRefused(t, createMaria(t, srv, "organizer"), http.StatusForbidden, "role_beyond_reach")
+	wantRefused(t, createMaria(t, srv, "admin"), http.StatusForbidden, "role_not_grantable")
+	wantRefused(t, createMaria(t, srv, "organizer"), http.StatusForbidden, "role_not_grantable")
 	wantNoMaria(t, store)
+}
+
+func TestCreateAnswersTheCreatedAccountEditable(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := reachServer(t, store, ladder(), "moderator")
+
+	recorder := createMaria(t, srv, "member")
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusCreated, recorder.Body)
+	}
+	if editable := decodeBody[userBody](t, recorder).Editable; editable == nil || !*editable {
+		t.Errorf("created account = %s, want it editable by the actor that gave its role", recorder.Body)
+	}
 }
 
 func TestCreateGivesARoleWithinReach(t *testing.T) {
@@ -281,29 +299,35 @@ func TestSetRoleRefusesAnEmptyRoleWhateverTheSourceSays(t *testing.T) {
 	}
 }
 
-func TestSetRoleRefusesHandingOutARoleBeyondReach(t *testing.T) {
+func TestSetRoleRefusesARoleTheActorMayNotGive(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
 	srv := reachServer(t, store, ladder(), "moderator")
 	maria := addMariaAs(t, store, "member")
 
-	wantRefused(t, setRole(t, srv, maria, "admin"), http.StatusForbidden, "role_beyond_reach")
+	wantRefused(t, setRole(t, srv, maria, "admin"), http.StatusForbidden, "role_not_grantable")
 	if held := store.Users[maria.ID].Role; held != "member" {
 		t.Errorf("role = %q, want the refused write to leave %q", held, "member")
 	}
 }
 
-func TestSetRoleRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
+func TestSetRoleRefusesAnAccountTheActorMayNotEdit(t *testing.T) {
 	t.Parallel()
 
-	store := testkit.NewStore()
-	srv := reachServer(t, store, ladder(), "moderator")
-	maria := addMariaAs(t, store, "admin")
+	for _, role := range []string{"member", "organizer"} {
+		t.Run("to "+role, func(t *testing.T) {
+			t.Parallel()
 
-	wantRefused(t, setRole(t, srv, maria, "member"), http.StatusForbidden, "role_beyond_reach")
-	if held := store.Users[maria.ID].Role; held != "admin" {
-		t.Errorf("role = %q, want the refused write to leave %q", held, "admin")
+			store := testkit.NewStore()
+			srv := reachServer(t, store, ladder(), "moderator")
+			maria := addMariaAs(t, store, "admin")
+
+			wantRefused(t, setRole(t, srv, maria, role), http.StatusForbidden, "user_not_editable")
+			if held := store.Users[maria.ID].Role; held != "admin" {
+				t.Errorf("role = %q, want the refused write to leave %q", held, "admin")
+			}
+		})
 	}
 }
 
@@ -521,7 +545,7 @@ func TestErrorResponseForAuthErrorNamesAChangedRole(t *testing.T) {
 	}
 }
 
-func TestSetDisabledRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
+func TestSetDisabledRefusesAnAccountTheActorMayNotEdit(t *testing.T) {
 	t.Parallel()
 
 	for _, disabled := range []bool{true, false} {
@@ -535,7 +559,7 @@ func TestSetDisabledRefusesAnAccountHoldingARoleBeyondReach(t *testing.T) {
 				disable(store, maria)
 			}
 
-			wantRefused(t, setDisabled(t, srv, maria, disabled), http.StatusForbidden, "role_beyond_reach")
+			wantRefused(t, setDisabled(t, srv, maria, disabled), http.StatusForbidden, "user_not_editable")
 			if store.Users[maria.ID].Disabled == disabled {
 				t.Errorf("disabled = %v, want the refused write to leave %v", disabled, !disabled)
 			}
@@ -581,7 +605,7 @@ func TestReenablingRefusesAnAccountHoldingNoDeclaredRole(t *testing.T) {
 			maria := addMariaAs(t, store, held)
 			disable(store, maria)
 
-			wantRefused(t, setDisabled(t, srv, maria, false), http.StatusForbidden, "role_beyond_reach")
+			wantRefused(t, setDisabled(t, srv, maria, false), http.StatusForbidden, "role_not_grantable")
 			if !store.Users[maria.ID].Disabled {
 				t.Error("account enabled, want the refused write to leave it disabled")
 			}
@@ -779,6 +803,137 @@ func TestAccountWritesTakeAnyRoleWithoutASource(t *testing.T) {
 	}
 	if _, err := service.Invite(t.Context(), "other@example.com", "Maria Perez", "ghost"); err != nil {
 		t.Errorf("Invite(ghost) error = %v, want nil", err)
+	}
+}
+
+// listServer mounts the user list over the role source, admitting every role, signed in as the reader role.
+func listServer(t *testing.T, store *testkit.Store, roles authkit.RoleSource, readerRole string) http.Handler {
+	t.Helper()
+	addAdaAs(t, store, readerRole)
+	h := authkit.New(authkit.Config{Store: store})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: store, Roles: roles})
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", h.Login)
+	mux.Handle("GET /api/users", h.RequireSession(http.HandlerFunc(admin.List)))
+	return cookiedServer(mux, loginCookie(t, mux))
+}
+
+// addEveryHeldRole stores an account at each ladder role, one at a role nothing declares and one holding none.
+func addEveryHeldRole(t *testing.T, store *testkit.Store) {
+	t.Helper()
+	for _, held := range []string{"admin", "moderator", "organizer", "member", "withdrawn", ""} {
+		account := store.AddUser(t, cmp.Or(held, "none")+"@example.com", "Maria Perez", testPassword)
+		account.Role = held
+		store.Users[account.ID] = account
+	}
+}
+
+// listedEditable lists the accounts through srv and returns whether each is editable, by its address before the @.
+func listedEditable(t *testing.T, srv http.Handler) map[string]bool {
+	t.Helper()
+	recorder := doRequest(t, srv, http.MethodGet, "/api/users", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusOK, recorder.Body)
+	}
+	editable := map[string]bool{}
+	for _, account := range decodeBody[[]userBody](t, recorder) {
+		if account.Editable == nil {
+			t.Fatalf("account %s lists without editable, want it on every account", account.Email)
+		}
+		local, _, _ := strings.Cut(account.Email, "@")
+		editable[local] = *account.Editable
+	}
+	return editable
+}
+
+func TestListMarksTheAccountsTheReaderMayEdit(t *testing.T) {
+	t.Parallel()
+
+	for _, reader := range []struct {
+		role string
+		want map[string]bool
+	}{
+		{"admin", map[string]bool{"ada": true, "admin": true, "moderator": true, "organizer": true, "member": true}},
+		{"moderator", map[string]bool{"ada": true, "admin": false, "moderator": true, "organizer": false, "member": true}},
+		{"organizer", map[string]bool{"ada": true, "admin": false, "moderator": false, "organizer": true, "member": true}},
+		{"member", map[string]bool{"ada": true, "admin": false, "moderator": false, "organizer": false, "member": true}},
+	} {
+		t.Run(reader.role, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			srv := listServer(t, store, ladder(), reader.role)
+			addEveryHeldRole(t, store)
+
+			got := listedEditable(t, srv)
+
+			if len(got) != 7 {
+				t.Fatalf("listed %d accounts, want the reader and six others", len(got))
+			}
+			for account, want := range reader.want {
+				if got[account] != want {
+					t.Errorf("%s reader: editable(%s) = %v, want %v", reader.role, account, got[account], want)
+				}
+			}
+		})
+	}
+}
+
+func TestListMarksAnAccountHoldingNoDeclaredRoleEditable(t *testing.T) {
+	t.Parallel()
+
+	for _, reader := range []string{"admin", "moderator", "organizer", "member"} {
+		t.Run(reader, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			srv := listServer(t, store, ladder(), reader)
+			addEveryHeldRole(t, store)
+
+			got := listedEditable(t, srv)
+
+			if !got["withdrawn"] || !got["none"] {
+				t.Errorf("editable = withdrawn %v, none %v, want both editable", got["withdrawn"], got["none"])
+			}
+		})
+	}
+}
+
+func TestListMarksAnAccountHoldingTheEmptyRoleEditableWhateverTheSourceSays(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	srv := listServer(t, store, emptyAboveAll{}, "admin")
+	addEveryHeldRole(t, store)
+
+	got := listedEditable(t, srv)
+
+	if !got["none"] {
+		t.Error("editable(none) = false, want the account holding no role editable, as every write treats it")
+	}
+}
+
+func TestListAccountsMarksTheAccountsTheReaderInTheContextMayEdit(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	addEveryHeldRole(t, store)
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: store, Roles: ladder()})
+	ctx := authkit.WithIdentity(t.Context(), authkit.Identity{Role: "moderator"})
+
+	listed, err := admin.ListAccounts(ctx)
+
+	if err != nil || len(listed) != 6 {
+		t.Fatalf("ListAccounts() = %d accounts, %v, want 6 and nil", len(listed), err)
+	}
+	want := map[string]bool{
+		"admin": false, "moderator": true, "organizer": false, "member": true, "withdrawn": true, "none": true,
+	}
+	for _, account := range listed {
+		local, _, _ := strings.Cut(account.Email, "@")
+		if account.Editable != want[local] {
+			t.Errorf("editable(%s) = %v, want %v for a moderator reader", local, account.Editable, want[local])
+		}
 	}
 }
 
