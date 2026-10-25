@@ -149,15 +149,6 @@ func TestSetPasswordRejectsOutOfBoundsPasswords(t *testing.T) {
 	}
 }
 
-func TestNewInvitedUserRefusesControlCharactersInEmail(t *testing.T) {
-	t.Parallel()
-
-	_, err := gouncer.NewInvitedUser("a\u0085b@example.com", "Maria Perez")
-	if !errors.Is(err, gouncer.ErrInvalidEmail) {
-		t.Errorf("NewInvitedUser() error = %v, want %v", err, gouncer.ErrInvalidEmail)
-	}
-}
-
 func TestNewInvitedUserRefusesEveryC1Control(t *testing.T) {
 	t.Parallel()
 

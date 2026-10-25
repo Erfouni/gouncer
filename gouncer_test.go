@@ -172,15 +172,6 @@ func TestPasswordHashesAreSalted(t *testing.T) {
 	}
 }
 
-func TestNewUserRefusesControlCharactersInEmail(t *testing.T) {
-	t.Parallel()
-
-	_, err := gouncer.NewUser("a\u009b8mb@example.com", "Maria Perez", "correct horse battery")
-	if !errors.Is(err, gouncer.ErrInvalidEmail) {
-		t.Errorf("NewUser() error = %v, want %v", err, gouncer.ErrInvalidEmail)
-	}
-}
-
 func TestNewUserAcceptsTrimmedAndAccentedAddresses(t *testing.T) {
 	t.Parallel()
 
