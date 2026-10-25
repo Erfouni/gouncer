@@ -120,7 +120,7 @@ func newIdentity(email, name string) (User, error) {
 const maxEmailLength = 254
 
 // isValidEmail reports whether email is a single plain address without a
-// display name.
+// display name or a control character.
 func isValidEmail(email string) bool {
 	if len(email) > maxEmailLength {
 		return false
