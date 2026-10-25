@@ -11,6 +11,7 @@ Releases of this module are tagged `authkit/vX.Y.Z`.
 
 ### Changed
 
+- The module builds against gouncer v0.5.0, the first release with `avatar`.
 - The module needs Go 1.27.3.
 
 ## [0.23.0] - 2026-10-18
