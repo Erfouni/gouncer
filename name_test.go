@@ -22,36 +22,47 @@ func TestAccountConstructorsCleanNames(t *testing.T) {
 			return gouncer.NewInvitedUser("ada@example.com", name)
 		},
 	}
+	tests := map[string]struct {
+		name string
+		want string
+	}{
+		"NUL dropped":                 {"Ada\x00 Lovelace", "Ada Lovelace"},
+		"tabs and line breaks folded": {" \tAda  \r\n\t Lovelace\n ", "Ada Lovelace"},
+		"other C0 controls dropped":   {"Ad\x01a\x1f Lovelace", "Ada Lovelace"},
+		"Persian letters kept":        {"  آدا لاولیس  ", "آدا لاولیس"},
+		"DEL and C1 kept inside": {
+			"Ada\U0000007f\U00000085\U0000009b Lovelace", "Ada\U0000007f\U00000085\U0000009b Lovelace",
+		},
+		"bidi and zero width kept inside": {"Ada\U0000202e\U0000200b Lovelace", "Ada\U0000202e\U0000200b Lovelace"},
+		"next line kept at the start":     {"\U00000085Ada", "\U00000085Ada"},
+		"next line kept at the end":       {"Ada\U00000085", "Ada\U00000085"},
+		"next line alone":                 {"\U00000085", "\U00000085"},
+		"no-break spaces around next line": {
+			" \U000000a0\U00000085Ada\U00000085\U000000a0 ", "\U00000085Ada\U00000085",
+		},
+		"no-break spaces at the ends":     {" \U000000a0Ada\U000000a0 ", "Ada"},
+		"DEL kept at the ends":            {"\U0000007fAda\U0000007f", "\U0000007fAda\U0000007f"},
+		"C1 kept at the ends":             {"\U00000080\U0000009bAda\U0000009f", "\U00000080\U0000009bAda\U0000009f"},
+		"bidi and zero width at the ends": {"\U0000202eAda\U0000200b", "\U0000202eAda\U0000200b"},
+		"256 letters after cleaning":      {strings.Repeat("a", 256) + "\x00", strings.Repeat("a", 256)},
+	}
+
 	for constructor, create := range constructors {
 		t.Run(constructor, func(t *testing.T) {
-			for _, tc := range []struct {
-				name string
-				want string
-			}{
-				{"Ada\x00 Lovelace", "Ada Lovelace"},
-				{" \tAda  \r\n\t Lovelace\n ", "Ada Lovelace"},
-				{"Ad\x01a\x1f Lovelace", "Ada Lovelace"},
-				{"  آدا لاولیس  ", "آدا لاولیس"},
-				{"Ada\u007f\u0085\u009b Lovelace", "Ada\u007f\u0085\u009b Lovelace"},
-				{"Ada\u202e\u200b Lovelace", "Ada\u202e\u200b Lovelace"},
-				{"\u0085Ada", "\u0085Ada"},
-				{"Ada\u0085", "Ada\u0085"},
-				{"\u0085", "\u0085"},
-				{" \u00a0\u0085Ada\u0085\u00a0 ", "\u0085Ada\u0085"},
-				{" \u00a0Ada\u00a0 ", "Ada"},
-				{"\u007fAda\u007f", "\u007fAda\u007f"},
-				{"\u0080\u009bAda\u009f", "\u0080\u009bAda\u009f"},
-				{"\u202eAda\u200b", "\u202eAda\u200b"},
-				{strings.Repeat("a", 256) + "\x00", strings.Repeat("a", 256)},
-			} {
-				u, err := create(tc.name)
-				if err != nil {
-					t.Errorf("name %q: error = %v, want nil", tc.name, err)
-					continue
-				}
-				if u.Name != tc.want {
-					t.Errorf("name = %q, want %q", u.Name, tc.want)
-				}
+			t.Parallel()
+
+			for testName, tc := range tests {
+				t.Run(testName, func(t *testing.T) {
+					t.Parallel()
+
+					u, err := create(tc.name)
+					if err != nil {
+						t.Fatalf("%s(%+q) error = %v, want nil", constructor, tc.name, err)
+					}
+					if u.Name != tc.want {
+						t.Errorf("name = %+q, want %+q", u.Name, tc.want)
+					}
+				})
 			}
 		})
 	}
@@ -71,7 +82,7 @@ func TestNewInvitedUserCleansEveryC0Control(t *testing.T) {
 				t.Fatalf("NewInvitedUser() error = %v, want nil", err)
 			}
 			if u.Name != want {
-				t.Errorf("name = %q, want %q", u.Name, want)
+				t.Errorf("name = %+q, want %+q", u.Name, want)
 			}
 		})
 	}
